@@ -1,0 +1,9 @@
+Django>=4.2,<5.0
+djangorestframework>=3.16
+
+psycopg2-binary>=2.9
+
+celery[redis]>=5.3
+redis>=5.0
+
+python-dotenv>=1.0
