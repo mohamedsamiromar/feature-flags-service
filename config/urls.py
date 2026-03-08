@@ -1,22 +1,23 @@
-"""
-URL configuration for config project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+from django.conf import settings
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
+
+from apps.core.views import HealthCheckView
+
+api_patterns = [
+    path("auth/",       include("apps.accounts.urls")),
+    path("flags/",      include("apps.flags.urls")),
+    path("rules/",      include("apps.rules.urls")),
+    path("targeting/",  include("apps.targeting.urls")),
+    path("evaluation/", include("apps.evaluation.urls")),
+    path("audit/",      include("apps.audit.urls")),
+]
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Infrastructure probe — no auth required, not versioned.
+    # Used by ALBs, k8s liveness/readiness probes, and Docker HEALTHCHECK.
+    path("healthz/", HealthCheckView.as_view(), name="healthz"),
+
+    path("admin/", admin.site.urls),
+    path(f"api/{settings.API_VERSION}/", include(api_patterns)),
 ]

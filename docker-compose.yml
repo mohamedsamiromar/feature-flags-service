@@ -5,6 +5,7 @@ services:
   web:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
+    env_file: .env
     volumes:
       - .:/app
     ports:
@@ -30,6 +31,7 @@ services:
   celery:
     build: .
     command: celery -A config worker --loglevel=info
+    env_file: .env
     volumes:
       - .:/app
     depends_on:
@@ -39,6 +41,7 @@ services:
   celery-beat:
     build: .
     command: celery -A config beat --loglevel=info
+    env_file: .env
     volumes:
       - .:/app
     depends_on:

@@ -1,9 +1,21 @@
 Django>=4.2,<5.0
 djangorestframework>=3.16
+djangorestframework-simplejwt
 
 psycopg2-binary>=2.9
 
 celery[redis]>=5.3
 redis>=5.0
 
+django-redis
+django-cors-headers
+
 python-dotenv>=1.0
+
+gunicorn
+
+pytest
+pytest-django
+factory-boy
+
+pydantic
