@@ -42,14 +42,14 @@ class EvaluateFlagView(APIView):
 
         flag_key = serializer.validated_data["flag_key"]
         user_context = serializer.validated_data["user_context"]
+        env_id = serializer.validated_data["env_id"]
 
         try:
-            # evaluate() returns an EvaluationResult dataclass that contains
-            # flag_id, flag_key, and result — a single cache/DB round-trip.
             evaluation = _service.evaluate(
                 flag_key=flag_key,
                 owner_id=request.user.id,
                 user_context=user_context,
+                env_id=env_id,
             )
         except FlagNotFoundError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)

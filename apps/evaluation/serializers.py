@@ -6,6 +6,7 @@ from apps.evaluation.models import EvaluationLog
 class EvaluateRequestSerializer(serializers.Serializer):
     flag_key = serializers.CharField()
     user_context = serializers.DictField()
+    env_id = serializers.IntegerField()
 
 
 class EvaluateResponseSerializer(serializers.Serializer):

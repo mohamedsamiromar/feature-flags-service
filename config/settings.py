@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.targeting",
     "apps.evaluation",
     "apps.audit",
+    "apps.environment",
 ]
 
 MIDDLEWARE = [
