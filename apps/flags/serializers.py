@@ -9,9 +9,9 @@ class FeatureFlagSerializer(serializers.ModelSerializer):
         fields = [
             "id", "name", "key", "description",
             "is_enabled", "rollout_percentage",
-            "created_at", "updated_at",
+            "is_archived", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_archived", "created_at", "updated_at"]
 
     def validate_rollout_percentage(self, value: int) -> int:
         """

@@ -2,7 +2,7 @@ from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 
 from apps.audit.services import AuditService
-from apps.core.exceptions import FlagNotFoundError
+from apps.core.exceptions import FlagArchivedError, FlagNotFoundError
 from apps.flags.models import FeatureFlag
 
 
@@ -26,6 +26,8 @@ class FlagService:
 
     def update_flag(self, flag: FeatureFlag, user, **kwargs) -> FeatureFlag:
         self._assert_owner(flag, user)
+        if flag.is_archived:
+            raise FlagArchivedError()
         old_snapshot = AuditService.snapshot(flag)
 
         for attr, value in kwargs.items():
@@ -60,6 +62,36 @@ class FlagService:
             old_value=old_snapshot,
             new_value=None,
         )
+
+    def archive_flag(self, flag: FeatureFlag, user) -> FeatureFlag:
+        self._assert_owner(flag, user)
+        old_snapshot = AuditService.snapshot(flag)
+        flag.is_archived = True
+        flag.save(update_fields=["is_archived", "updated_at"])
+        self._invalidate_cache(user.id, flag.key)
+        AuditService.log(
+            user=user,
+            action=AuditService.ARCHIVE,
+            entity=flag,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(flag),
+        )
+        return flag
+
+    def unarchive_flag(self, flag: FeatureFlag, user) -> FeatureFlag:
+        self._assert_owner(flag, user)
+        old_snapshot = AuditService.snapshot(flag)
+        flag.is_archived = False
+        flag.save(update_fields=["is_archived", "updated_at"])
+        self._invalidate_cache(user.id, flag.key)
+        AuditService.log(
+            user=user,
+            action=AuditService.UNARCHIVE,
+            entity=flag,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(flag),
+        )
+        return flag
 
     # ------------------------------------------------------------------
 

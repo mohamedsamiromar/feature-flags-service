@@ -27,6 +27,8 @@ class AuditService:
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
+    ARCHIVE = "archive"
+    UNARCHIVE = "unarchive"
 
     @classmethod
     def log(

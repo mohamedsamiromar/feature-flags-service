@@ -58,7 +58,12 @@ class FlagEvaluationService:
                 EnvironmentFlag.objects
                 .select_related("feature_flag")
                 .prefetch_related("feature_flag__rules")
-                .get(feature_flag__key=flag_key, feature_flag__owner_id=owner_id, environment_id=env_id)
+                .get(
+                    feature_flag__key=flag_key,
+                    feature_flag__owner_id=owner_id,
+                    feature_flag__is_archived=False,
+                    environment_id=env_id,
+                )
             )
         except EnvironmentFlag.DoesNotExist:
             raise FlagNotFoundError(f"Flag '{flag_key}' not found in environment '{env_id}'")
