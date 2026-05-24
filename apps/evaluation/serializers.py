@@ -3,17 +3,6 @@ from rest_framework import serializers
 from apps.evaluation.models import EvaluationLog
 
 
-class EvaluateRequestSerializer(serializers.Serializer):
-    flag_key = serializers.CharField()
-    user_context = serializers.DictField()
-    env_id = serializers.IntegerField()
-
-
-class EvaluateResponseSerializer(serializers.Serializer):
-    flag_key = serializers.CharField()
-    result = serializers.BooleanField()
-
-
 class EvaluationLogSerializer(serializers.ModelSerializer):
     flag_key = serializers.CharField(source="flag.key", read_only=True)
 
