@@ -1,0 +1,440 @@
+{
+  "info": {
+    "name": "Feature Flags API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000/api/v1" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "sdk_key", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "http://localhost:8000/healthz/", "host": ["http://localhost:8000/healthz/"] },
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Obtain Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', json.access);",
+                  "pm.collectionVariables.set('refresh_token', json.refresh);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/token/", "host": ["{{base_url}}"], "path": ["auth", "token", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"your_username\",\n  \"password\": \"your_password\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', json.access);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/token/refresh/", "host": ["{{base_url}}"], "path": ["auth", "token", "refresh", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Feature Flags",
+      "item": [
+        {
+          "name": "List Flags",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": {
+              "raw": "{{base_url}}/flags/",
+              "host": ["{{base_url}}"],
+              "path": ["flags", ""],
+              "query": [{ "key": "include_archived", "value": "true", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Create Flag",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/flags/", "host": ["{{base_url}}"], "path": ["flags", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Flag",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+          }
+        },
+        {
+          "name": "Update Flag (PUT)",
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "dark-mode" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"is_enabled\": true,\n  \"rollout_percentage\": 50\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Partial Update Flag (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "dark-mode" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_enabled\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete Flag",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+          }
+        },
+        {
+          "name": "Archive Flag",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/flags/:key/archive/", "host": ["{{base_url}}"], "path": ["flags", ":key", "archive", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+          }
+        },
+        {
+          "name": "Unarchive Flag",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/flags/:key/unarchive/", "host": ["{{base_url}}"], "path": ["flags", ":key", "unarchive", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rules",
+      "item": [
+        {
+          "name": "List Rules",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] }
+          }
+        },
+        {
+          "name": "Create Rule",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"eq\",\n  \"value\": \"US\",\n  \"priority\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "operator choices: eq, neq, contains, in, not_in, gt, lt"
+          }
+        },
+        {
+          "name": "Get Rule",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Update Rule (PUT)",
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"in\",\n  \"value\": \"US,CA\",\n  \"priority\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Partial Update Rule (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"UK\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete Rule",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Environments",
+      "item": [
+        {
+          "name": "List Environments",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/environments/", "host": ["{{base_url}}"], "path": ["environments", ""] }
+          }
+        },
+        {
+          "name": "Create Environment",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/environments/", "host": ["{{base_url}}"], "path": ["environments", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"production\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "name choices: development, staging, production"
+          }
+        },
+        {
+          "name": "Get Environment",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/environments/:id/", "host": ["{{base_url}}"], "path": ["environments", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Delete Environment",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/environments/:id/", "host": ["{{base_url}}"], "path": ["environments", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "List Environment Flags",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/environments/:id/flags/", "host": ["{{base_url}}"], "path": ["environments", ":id", "flags", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Update Environment Flag State",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/environments/:id/flags/:flag_id/",
+              "host": ["{{base_url}}"],
+              "path": ["environments", ":id", "flags", ":flag_id", ""],
+              "variable": [
+                { "key": "id", "value": "1" },
+                { "key": "flag_id", "value": "1" }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_enabled\": true,\n  \"rollout_percentage\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SDK Keys",
+      "item": [
+        {
+          "name": "List SDK Keys",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""] }
+          }
+        },
+        {
+          "name": "Create SDK Key",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Server Key\",\n  \"key_type\": \"server\",\n  \"environment\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "key_type choices: server, client. The full key is returned once — store it immediately."
+          }
+        },
+        {
+          "name": "Get SDK Key",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/sdk-keys/:id/", "host": ["{{base_url}}"], "path": ["sdk-keys", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Revoke SDK Key",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/sdk-keys/:id/revoke/", "host": ["{{base_url}}"], "path": ["sdk-keys", ":id", "revoke", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Rotate SDK Key",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/sdk-keys/:id/rotate/", "host": ["{{base_url}}"], "path": ["sdk-keys", ":id", "rotate", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/audit/", "host": ["{{base_url}}"], "path": ["audit", ""] }
+          }
+        },
+        {
+          "name": "Get Audit Log",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/audit/:id/", "host": ["{{base_url}}"], "path": ["audit", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Evaluation Logs",
+      "item": [
+        {
+          "name": "List Evaluation Logs",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/evaluation/logs/", "host": ["{{base_url}}"], "path": ["evaluation", "logs", ""] }
+          }
+        },
+        {
+          "name": "Get Evaluation Log",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "url": { "raw": "{{base_url}}/evaluation/logs/:id/", "host": ["{{base_url}}"], "path": ["evaluation", "logs", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SDK",
+      "item": [
+        {
+          "name": "Evaluate Flag",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-SDK-Key", "value": "{{sdk_key}}" }
+            ],
+            "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flag_key\": \"dark-mode\",\n  \"user_context\": {\n    \"user_id\": \"u123\",\n    \"country\": \"US\",\n    \"plan\": \"premium\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Auth: X-SDK-Key header with sdk_srv_<token> or sdk_cli_<token>. Set the {{sdk_key}} variable."
+          }
+        }
+      ]
+    }
+  ]
+}

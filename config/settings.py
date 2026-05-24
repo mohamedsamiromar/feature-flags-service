@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     "apps.evaluation",
     "apps.audit",
     "apps.environment",
+    "apps.sdk_keys",
+    "apps.sdk",
 ]
 
 MIDDLEWARE = [
@@ -120,6 +122,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.sdk_keys.authentication.SDKKeyAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
