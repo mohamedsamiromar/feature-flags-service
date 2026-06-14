@@ -2,13 +2,13 @@
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![Django](https://img.shields.io/badge/django-4.2-green)
-![Tests](https://img.shields.io/badge/tests-104%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-136%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-coming%20soon-yellow)
 
 A self-hosted, production-grade feature flag engine you can deploy with a single `docker compose up`. Built in Python and modelled after the architecture of LaunchDarkly — with Redis-cached flag evaluation, async impression logging, rule-based user targeting, environment-scoped flag state, SDK key authentication, and a full audit trail.
 
-Designed to be used as a backend service by any application: point your SDK key at `POST /api/v1/sdk/evaluate/` and start shipping flags in minutes. Advanced features (multivariate flags, SSE streaming, experimentation) are in progress — see the [Roadmap](#roadmap) section.
+Designed to be used as a backend service by any application: point your SDK key at `POST /api/v1/sdk/evaluate/` and start shipping flags in minutes. Advanced features (SSE streaming, experimentation) are in progress — see the [Roadmap](#roadmap) section.
 
 ---
 
@@ -57,12 +57,12 @@ Designed to be used as a backend service by any application: point your SDK key 
 Every flag evaluation follows this exact sequence:
 
 1. **Cache lookup** — resolve `flags:{owner_id}:{env_id}:{flag_key}` from Redis. On miss, query PostgreSQL and warm the cache.
-2. **Kill switch** — if the environment-level `is_enabled = false`, return `false` immediately.
-3. **Targeting rules** — evaluate rules in `priority` order. First match returns `true`.
-4. **Percentage rollout** — compute `SHA-256(flag_key + user_id) % 100 < rollout_percentage`. Deterministic: the same user always lands in the same bucket.
-5. **Default** — return `false`.
+2. **Kill switch** — if the environment-level `is_enabled = false`, return the `off_variation` value immediately.
+3. **Targeting rules** — evaluate rules in `priority` order. First match serves the rule's `serve_variation` (if set) or the flag's `fallthrough_variation`.
+4. **Percentage rollout** — compute `SHA-256(flag_key + user_id) % 100 < rollout_percentage`. Deterministic: the same user always lands in the same bucket. Users in the bucket receive `fallthrough_variation`; users outside receive `off_variation`.
+5. **Default** — return `off_variation`.
 
-Cache keys are now scoped to `(owner_id, env_id, flag_key)` so each environment maintains an independent cached state.
+Every result carries a `result` value (boolean, string, number, or JSON object) and a `result_type` string. Cache keys are scoped to `(owner_id, env_id, flag_key)` so each environment maintains an independent cached state.
 
 ---
 
@@ -87,6 +87,15 @@ Cache keys are now scoped to `(owner_id, env_id, flag_key)` so each environment 
 - **Percentage rollout** — SHA-256-based deterministic bucket assignment. Same user always gets the same result for a given flag.
 - **Rule-based targeting** — ordered rules with operators: `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`. Rules evaluated by priority.
 - **Redis caching** — flag config and rules cached per `(owner, environment, key)`. Invalidated on every flag update, rule mutation, and environment flag state change.
+
+### Multivariate Flags (F-07)
+
+- **Flag types** — every flag is either `boolean` (default) or `multivariate`. Boolean flags automatically receive `true` and `false` variations on creation.
+- **Variation model** — each variation has a `name`, a `value_type` (`boolean`, `string`, `number`, `json`), and a `value` stored as a `JSONField`. A flag can carry any number of named variations.
+- **Off / fallthrough wiring** — `off_variation` is served when a flag is disabled; `fallthrough_variation` is served when a user lands in the rollout bucket. Both are set via `PATCH /api/v1/flags/{key}/`.
+- **Rule-level targeting** — each targeting rule can specify a `serve_variation` (variation ID). When the rule matches, that specific variation is returned instead of the fallthrough.
+- **Typed evaluation response** — the SDK evaluate endpoint now returns `result` (the variation value) and `result_type` (`boolean` / `string` / `number` / `json`) so clients know how to handle the payload.
+- **Backwards compatible** — existing boolean flags created before F-07 continue to work. If no variation is configured, the engine falls back to `true` / `false` booleans so nothing breaks.
 
 ### Flag Lifecycle (F-06)
 
@@ -153,12 +162,38 @@ POST   /api/v1/auth/token/refresh/                  Rotate access token
 GET    /api/v1/flags/                               List flags (excludes archived by default)
 GET    /api/v1/flags/?include_archived=true         List flags including archived
 POST   /api/v1/flags/                               Create a flag
-GET    /api/v1/flags/{id}/                          Retrieve a flag
-PATCH  /api/v1/flags/{id}/                          Update a flag (409 if archived)
-DELETE /api/v1/flags/{id}/                          Delete a flag
-POST   /api/v1/flags/{id}/archive/                  Archive a flag
-POST   /api/v1/flags/{id}/unarchive/                Unarchive a flag
+GET    /api/v1/flags/{key}/                         Retrieve a flag
+PATCH  /api/v1/flags/{key}/                         Update a flag (409 if archived)
+DELETE /api/v1/flags/{key}/                         Delete a flag
+POST   /api/v1/flags/{key}/archive/                 Archive a flag
+POST   /api/v1/flags/{key}/unarchive/               Unarchive a flag
+GET    /api/v1/flags/{key}/variations/              List variations
+POST   /api/v1/flags/{key}/variations/              Create a variation
+PATCH  /api/v1/flags/{key}/variations/{id}/         Update a variation
+DELETE /api/v1/flags/{key}/variations/{id}/         Delete a variation
 ```
+
+Create flag request body:
+
+```json
+{
+  "name": "Button Theme",
+  "key": "button-theme",
+  "flag_type": "multivariate"
+}
+```
+
+`flag_type` is `boolean` (default) or `multivariate`. Create variation request body:
+
+```json
+{
+  "name": "red",
+  "value_type": "string",
+  "value": "#ff0000"
+}
+```
+
+`value_type` choices: `boolean`, `string`, `number`, `json`.
 
 ### Rules
 
@@ -168,6 +203,19 @@ POST   /api/v1/rules/                               Create a rule
 GET    /api/v1/rules/{id}/                          Retrieve a rule
 PATCH  /api/v1/rules/{id}/                          Update a rule
 DELETE /api/v1/rules/{id}/                          Delete a rule
+```
+
+The optional `serve_variation` field (variation ID) controls which variation is returned when the rule matches. Set it to `null` for boolean flags (the engine returns `true` on match).
+
+```json
+{
+  "flag": 1,
+  "attribute": "plan",
+  "operator": "eq",
+  "value": "premium",
+  "priority": 1,
+  "serve_variation": 3
+}
 ```
 
 ### Environments
@@ -241,6 +289,18 @@ Response:
 {
   "flag_key": "dark-mode",
   "result": true,
+  "result_type": "boolean",
+  "environment": "production"
+}
+```
+
+`result_type` is one of `boolean`, `string`, `number`, or `json`. For multivariate flags `result` carries the variation value directly — a string, number, or JSON object:
+
+```json
+{
+  "flag_key": "button-theme",
+  "result": "#ff0000",
+  "result_type": "string",
   "environment": "production"
 }
 ```
@@ -289,7 +349,7 @@ Services started by Docker Compose:
 | Service | Port | Description |
 | --- | --- | --- |
 | `web` | 8000 | Django API server |
-| `db` | 5432 | PostgreSQL 15 |
+| `db` | 5434 | PostgreSQL 15 |
 | `redis` | 6379 | Redis 7 |
 | `celery` | — | Async task worker |
 | `celery-beat` | — | Periodic task scheduler |
@@ -344,7 +404,7 @@ feature_flags/
 - [x] Environments (production / staging / dev) — per-environment flag state
 - [ ] Projects and Organizations — team-level multi-tenancy
 - [x] SDK keys — long-lived tokens scoped to one environment
-- [ ] Multivariate flags — string / number / JSON variations, not just booleans
+- [x] Multivariate flags — string / number / JSON variations, not just booleans
 
 ### Phase 2 — Targeting Power
 
@@ -402,6 +462,12 @@ Scoping by environment means toggling a flag in staging never invalidates the pr
 
 **Why is the cache invalidated on rule changes too?**
 The Redis cache stores the full flag config including its rules. If a rule is added, updated, or deleted, the cached config becomes stale. Both `FlagService` (flag mutations) and `RuleViewSet` (rule mutations) call `FlagService._invalidate_cache()` after every write. The next evaluation re-fetches from PostgreSQL and rewarms the cache.
+
+**Why are variation values stored in a JSONField?**
+A `Variation` needs to hold a boolean, a string, a number, or an arbitrary JSON object — four types in one column. A `JSONField` handles all of them without schema changes per type. The `value_type` column records which type is stored so clients know how to deserialise the value. Storing typed values as raw JSON is the same approach used by LaunchDarkly's variation system.
+
+**Why are boolean flags auto-wired on creation?**
+Creating a boolean flag via `FlagService.create_flag()` automatically creates `true` and `false` variations and sets them as `fallthrough_variation` and `off_variation`. This means boolean flags work out of the box with zero extra configuration — the same UX as pre-F-07 — while the evaluation engine always runs the same variation-based code path, keeping the logic simple and consistent.
 
 **Three-layer rollout_percentage validation**
 A value outside 0–100 causes silent misbehaviour: `percentage=150` enables every user because `hash % 100 < 150` is always true. The constraint is enforced at the DRF serializer (clean 400 response), the Django model validator (ORM-level), and a PostgreSQL `CheckConstraint` (database-level, bypassed-ORM-proof).
