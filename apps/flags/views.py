@@ -2,8 +2,8 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.flags.models import FeatureFlag
-from apps.flags.serializers import FeatureFlagSerializer
+from apps.flags.models import FeatureFlag, Variation
+from apps.flags.serializers import FeatureFlagSerializer, VariationSerializer
 from apps.flags.services import FlagService
 
 _service = FlagService()
@@ -74,3 +74,49 @@ class FeatureFlagViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Flag is not archived."}, status=status.HTTP_409_CONFLICT)
         _service.unarchive_flag(flag=flag, user=request.user)
         return Response(FeatureFlagSerializer(flag).data)
+
+    # ------------------------------------------------------------------
+    # Variation endpoints
+    # ------------------------------------------------------------------
+
+    @action(detail=True, methods=["get", "post"], url_path="variations")
+    def variations(self, request, key=None):
+        flag = self.get_object()
+
+        if request.method == "GET":
+            qs = Variation.objects.filter(flag=flag)
+            return Response(VariationSerializer(qs, many=True).data)
+
+        serializer = VariationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        variation = _service.create_variation(
+            flag=flag,
+            user=request.user,
+            **serializer.validated_data,
+        )
+        return Response(VariationSerializer(variation).data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=["patch", "delete"],
+        url_path=r"variations/(?P<variation_id>[^/.]+)",
+    )
+    def variation_detail(self, request, key=None, variation_id=None):
+        flag = self.get_object()
+        try:
+            variation = Variation.objects.get(pk=variation_id, flag=flag)
+        except Variation.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == "DELETE":
+            _service.delete_variation(variation=variation, user=request.user)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        serializer = VariationSerializer(variation, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated = _service.update_variation(
+            variation=variation,
+            user=request.user,
+            **serializer.validated_data,
+        )
+        return Response(VariationSerializer(updated).data)

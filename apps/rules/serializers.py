@@ -10,6 +10,7 @@ class RuleSerializer(serializers.ModelSerializer):
         fields = [
             "id", "flag", "attribute", "operator",
             "value", "priority",
+            "serve_variation",
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]

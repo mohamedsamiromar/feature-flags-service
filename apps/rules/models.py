@@ -19,6 +19,12 @@ class Rule(BaseModel):
     operator = models.CharField(max_length=50, choices=Operator.choices)
     value = models.CharField(max_length=255)
     priority = models.IntegerField(default=0)
+    serve_variation = models.ForeignKey(
+        "flags.Variation",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="rules",
+    )
 
     class Meta:
         ordering = ["priority"]

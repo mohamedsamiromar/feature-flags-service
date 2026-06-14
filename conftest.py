@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from apps.environment.models import Environment, EnvironmentFlag
-from apps.flags.models import FeatureFlag
+from apps.flags.models import FeatureFlag, Variation
 from apps.sdk_keys.key_generator import KeyGenerator
 from apps.sdk_keys.models import SDKKey
 
@@ -61,6 +61,16 @@ class EnvironmentFlagFactory(factory.django.DjangoModelFactory):
     # owners match — do NOT use SubFactory here or unique_together will fail.
     is_enabled = True
     rollout_percentage = 100
+
+
+class VariationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Variation
+
+    flag = factory.SubFactory(FeatureFlagFactory)
+    name = factory.Sequence(lambda n: f"variation-{n}")
+    value_type = Variation.ValueType.BOOLEAN
+    value = True
 
 
 class SDKKeyFactory(factory.django.DjangoModelFactory):

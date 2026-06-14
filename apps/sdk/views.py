@@ -60,6 +60,7 @@ class SDKEvaluateFlagView(APIView):
             SDKEvaluateResponseSerializer({
                 "flag_key": evaluation.flag_key,
                 "result": evaluation.result,
+                "result_type": evaluation.result_type,
                 "environment": sdk_key.environment.name,
             }).data
         )

@@ -29,10 +29,14 @@ class TestArchiveFlag:
         assert log.old_value["is_archived"] is False
         assert log.new_value["is_archived"] is True
 
-    def test_invalidates_cache(self, flag, user):
-        with patch("apps.flags.services.cache") as mock_cache:
+    def test_invalidates_cache(self, flag, environment, user):
+        from conftest import EnvironmentFlagFactory
+        EnvironmentFlagFactory(feature_flag=flag, environment=environment)
+        with patch("apps.evaluation.services.cache") as mock_cache:
             service.archive_flag(flag, user)
-        mock_cache.delete.assert_called_once_with(f"flags:{user.id}:{flag.key}")
+        mock_cache.delete.assert_called_once_with(
+            f"flags:{user.id}:{environment.id}:{flag.key}"
+        )
 
     def test_raises_permission_denied_for_non_owner(self, flag, other_user):
         with pytest.raises(PermissionDenied):
@@ -59,11 +63,15 @@ class TestUnarchiveFlag:
         assert log.old_value["is_archived"] is True
         assert log.new_value["is_archived"] is False
 
-    def test_invalidates_cache(self, user):
+    def test_invalidates_cache(self, environment, user):
+        from conftest import EnvironmentFlagFactory
         flag = FeatureFlagFactory(owner=user, is_archived=True)
-        with patch("apps.flags.services.cache") as mock_cache:
+        EnvironmentFlagFactory(feature_flag=flag, environment=environment)
+        with patch("apps.evaluation.services.cache") as mock_cache:
             service.unarchive_flag(flag, user)
-        mock_cache.delete.assert_called_once_with(f"flags:{user.id}:{flag.key}")
+        mock_cache.delete.assert_called_once_with(
+            f"flags:{user.id}:{environment.id}:{flag.key}"
+        )
 
     def test_raises_permission_denied_for_non_owner(self, other_user):
         flag = FeatureFlagFactory(is_archived=True)

@@ -3,11 +3,11 @@ from rest_framework import serializers
 
 class SDKEvaluateRequestSerializer(serializers.Serializer):
     flag_key = serializers.CharField()
-    # Arbitrary key-value context about the end user (country, plan, user_id…)
-    user_context = serializers.DictField(child=serializers.CharField(), default=dict)
+    user_context = serializers.DictField(default=dict)
 
 
 class SDKEvaluateResponseSerializer(serializers.Serializer):
     flag_key = serializers.CharField()
-    result = serializers.BooleanField()
+    result = serializers.JSONField()
+    result_type = serializers.CharField()
     environment = serializers.CharField()
