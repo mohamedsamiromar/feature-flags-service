@@ -1,8 +1,14 @@
 # Feature Flag Engine
 
-A production-grade feature flag backend built from scratch in Python, modelled after the architecture of LaunchDarkly. Designed for high-read-throughput flag evaluation with a Redis caching layer, async impression logging via Celery, rule-based user targeting, environment-scoped flag state, and a full audit trail.
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Django](https://img.shields.io/badge/django-4.2-green)
+![Tests](https://img.shields.io/badge/tests-104%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-coming%20soon-yellow)
 
-This is a long-term portfolio project. The core engine is complete and production-hardened. Advanced features (multivariate flags, SSE streaming, experimentation) are actively in progress — see the [Roadmap](#roadmap) section.
+A self-hosted, production-grade feature flag engine you can deploy with a single `docker compose up`. Built in Python and modelled after the architecture of LaunchDarkly — with Redis-cached flag evaluation, async impression logging, rule-based user targeting, environment-scoped flag state, SDK key authentication, and a full audit trail.
+
+Designed to be used as a backend service by any application: point your SDK key at `POST /api/v1/sdk/evaluate/` and start shipping flags in minutes. Advanced features (multivariate flags, SSE streaming, experimentation) are in progress — see the [Roadmap](#roadmap) section.
 
 ---
 
@@ -89,7 +95,7 @@ Cache keys are now scoped to `(owner_id, env_id, flag_key)` so each environment 
 - **Evaluation guard** — archived flags return `404` from the SDK evaluate endpoint so live traffic is never served a stale result.
 - **Audit log** — every archive and unarchive action is recorded with an `AuditLog` entry.
 
-### Environments
+### Multi-Environment Support
 
 - **Environment model** — named environments (e.g. `production`, `staging`) owned by a user. Deleting an environment cascades to its SDK keys and per-environment flag states.
 - **Per-environment flag state** — `EnvironmentFlag` links a `FeatureFlag` to an `Environment` with independent `is_enabled` and `rollout_percentage` values. Update state via `PATCH /api/v1/environments/{id}/flags/{flag_id}/`.
@@ -119,7 +125,7 @@ Cache keys are now scoped to `(owner_id, env_id, flag_key)` so each environment 
 - **Evaluation logging** — every SDK flag check is logged to `EvaluationLog` asynchronously via a Celery task. The HTTP response is returned before the DB write completes.
 - **Read-only audit API** — `GET /api/v1/audit/` exposes the audit trail to the owning user.
 
-### Infrastructure
+### Infrastructure & Ops
 
 - **Health check endpoint** — `GET /healthz/` probes PostgreSQL (`SELECT 1`) and Redis (sentinel write/read). Returns `200` or `503`. No auth required — safe for load balancers and k8s probes.
 - **Environment-variable configuration** — all secrets, DB credentials, Redis URLs, JWT lifetimes, and throttle rates loaded from `.env`. No hardcoded values.
@@ -129,6 +135,10 @@ Cache keys are now scoped to `(owner_id, env_id, flag_key)` so each environment 
 ---
 
 ## API Reference
+
+A [Postman collection](feature_flags.postman_collection.json) is included in the repository — import it to explore every endpoint without writing a single line of code.
+
+> **OpenAPI / Swagger UI** — interactive docs via `drf-spectacular` are planned. Until then, use the Postman collection or the reference below.
 
 ### Authentication
 
@@ -182,6 +192,7 @@ POST   /api/v1/sdk-keys/{id}/rotate/                Revoke + issue replacement
 ```
 
 SDK key create request body:
+
 ```json
 {
   "name": "Production Server",
@@ -191,6 +202,7 @@ SDK key create request body:
 ```
 
 SDK key create response (full key shown once):
+
 ```json
 {
   "id": 1,
@@ -211,6 +223,7 @@ POST   /api/v1/sdk/evaluate/                        Evaluate a flag (SDK key aut
 Header: `X-SDK-Key: sdk_srv_<token>`
 
 Request body:
+
 ```json
 {
   "flag_key": "dark-mode",
@@ -223,6 +236,7 @@ Request body:
 ```
 
 Response:
+
 ```json
 {
   "flag_key": "dark-mode",
@@ -279,6 +293,10 @@ Services started by Docker Compose:
 | `redis` | 6379 | Redis 7 |
 | `celery` | — | Async task worker |
 | `celery-beat` | — | Periodic task scheduler |
+
+### Explore the API
+
+Import [`feature_flags.postman_collection.json`](feature_flags.postman_collection.json) into Postman to get a ready-made collection of every endpoint with example request bodies.
 
 ### Running Tests
 
