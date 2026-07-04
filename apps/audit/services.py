@@ -29,6 +29,7 @@ class AuditService:
     DELETE = "delete"
     ARCHIVE = "archive"
     UNARCHIVE = "unarchive"
+    TOGGLE = "toggle"
 
     @classmethod
     def log(

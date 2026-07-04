@@ -2,11 +2,15 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.environment.models import Environment, EnvironmentFlag
+from apps.environment.serializers import EnvironmentFlagSerializer
+from apps.environment.services import EnvironmentFlagService
 from apps.flags.models import FeatureFlag, Variation
 from apps.flags.serializers import FeatureFlagSerializer, VariationSerializer
 from apps.flags.services import FlagService
 
 _service = FlagService()
+_env_flag_service = EnvironmentFlagService()
 
 
 class FeatureFlagViewSet(viewsets.ModelViewSet):
@@ -74,6 +78,44 @@ class FeatureFlagViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Flag is not archived."}, status=status.HTTP_409_CONFLICT)
         _service.unarchive_flag(flag=flag, user=request.user)
         return Response(FeatureFlagSerializer(flag).data)
+
+    @action(detail=True, methods=["post"], url_path="toggle")
+    def toggle(self, request, key=None):
+        """
+        Flip a flag's per-environment kill switch in one call.
+
+        Body: {"environment": "production"}. The EnvironmentFlag is created on
+        first toggle (defaulting to off, so the first toggle turns it on).
+        """
+        try:
+            flag = FeatureFlag.objects.get(key=key, owner=request.user)
+        except FeatureFlag.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if flag.is_archived:
+            return Response(
+                {"detail": "Cannot toggle an archived flag."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        env_name = request.data.get("environment")
+        if not env_name:
+            return Response(
+                {"detail": "'environment' is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            env = Environment.objects.get(owner=request.user, name=env_name)
+        except Environment.DoesNotExist:
+            return Response(
+                {"detail": f"Environment '{env_name}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        env_flag, _ = EnvironmentFlag.objects.get_or_create(
+            feature_flag=flag, environment=env
+        )
+        updated = _env_flag_service.toggle(env_flag, request.user)
+        return Response(EnvironmentFlagSerializer(updated).data)
 
     # ------------------------------------------------------------------
     # Variation endpoints

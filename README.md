@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![Django](https://img.shields.io/badge/django-4.2-green)
-![Tests](https://img.shields.io/badge/tests-136%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-143%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-coming%20soon-yellow)
 
@@ -87,6 +87,7 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 - **Percentage rollout** — SHA-256-based deterministic bucket assignment. Same user always gets the same result for a given flag.
 - **Rule-based targeting** — ordered rules with operators: `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`. Rules evaluated by priority.
 - **Redis caching** — flag config and rules cached per `(owner, environment, key)`. Invalidated on every flag update, rule mutation, and environment flag state change.
+- **One-call toggle** — `POST /flags/{key}/toggle/` with `{"environment": "production"}` flips that environment's kill switch, invalidates the cache, and records an audit entry. The per-environment state is created on first toggle (off by default, so the first call turns the flag on).
 
 ### Multivariate Flags (F-07)
 
@@ -400,7 +401,7 @@ feature_flags/
 
 - [ ] Flag version history and one-click rollback
 - [x] Flag archive / soft-delete
-- [ ] Dedicated flag toggle endpoint (`POST /flags/{key}/toggle/`)
+- [x] Dedicated flag toggle endpoint (`POST /flags/{key}/toggle/`)
 - [x] Environments (production / staging / dev) — per-environment flag state
 - [ ] Projects and Organizations — team-level multi-tenancy
 - [x] SDK keys — long-lived tokens scoped to one environment

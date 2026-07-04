@@ -559,6 +559,67 @@
           ]
         },
         {
+          "name": "Toggle Flag",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"environment\": \"production\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{base_url}}/flags/:key/toggle/", "host": ["{{base_url}}"], "path": ["flags", ":key", "toggle", ""], "variable": [{ "key": "key", "value": "dark-mode" }] },
+            "description": "Flip the per-environment kill switch (EnvironmentFlag.is_enabled) for the named environment. The state is created on first toggle (off by default), invalidates the flag cache, and writes an audit entry."
+          },
+          "response": [
+            {
+              "name": "200 OK — Flag toggled",
+              "originalRequest": {
+                "method": "POST",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"environment\": \"production\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{base_url}}/flags/dark-mode/toggle/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "toggle", ""] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"id\": 5,\n  \"flag_key\": \"dark-mode\",\n  \"feature_flag\": 1,\n  \"is_enabled\": true,\n  \"rollout_percentage\": 0,\n  \"updated_at\": \"2026-07-04T12:00:00Z\"\n}"
+            },
+            {
+              "name": "400 Bad Request — Missing environment",
+              "originalRequest": {
+                "method": "POST",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{base_url}}/flags/dark-mode/toggle/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "toggle", ""] }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"detail\": \"'environment' is required.\"\n}"
+            },
+            {
+              "name": "404 Not Found — Unknown environment",
+              "originalRequest": {
+                "method": "POST",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"environment\": \"staging\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{base_url}}/flags/dark-mode/toggle/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "toggle", ""] }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"detail\": \"Environment 'staging' not found.\"\n}"
+            }
+          ]
+        },
+        {
           "name": "Variations",
           "item": [
             {
