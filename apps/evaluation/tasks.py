@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from celery import shared_task
 
 
@@ -15,14 +17,15 @@ from celery import shared_task
     # explicitly requested so we don't flood Redis with task results.
     ignore_result=True,
 )
-def log_evaluation(*, flag_id: int, user_id: int | None, result: bool, context_data: dict) -> None:
+def log_evaluation(*, flag_id: int, user_id: int | None, result: Any, context_data: dict) -> None:
     """
     Persist a single flag evaluation record asynchronously.
 
     Args:
         flag_id:      Primary key of the evaluated FeatureFlag.
         user_id:      Primary key of the requesting user (None for anonymous).
-        result:       Boolean outcome of the evaluation.
+        result:       The served variation value — boolean, string, number, or
+                      JSON object.
         context_data: The user_context dict submitted with the evaluation request.
                       Stored for debugging / analytics; treat as potentially
                       sensitive and avoid logging PII beyond what is necessary.

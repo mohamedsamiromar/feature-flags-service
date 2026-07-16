@@ -1,4 +1,3 @@
-from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 
 from apps.audit.services import AuditService
@@ -38,7 +37,7 @@ class FlagService:
         for attr, value in kwargs.items():
             setattr(flag, attr, value)
         flag.save()
-        self._invalidate_all_env_caches(flag)
+        self.invalidate_flag_caches(flag)
 
         AuditService.log(
             user=user,
@@ -52,9 +51,13 @@ class FlagService:
     def delete_flag(self, flag: FeatureFlag, user) -> None:
         self._assert_owner(flag, user)
         old_snapshot = AuditService.snapshot(flag)
-        flag_key = flag.key
+        # Capture the cache coordinates before the delete cascades the
+        # EnvironmentFlag rows away — afterwards there is no way to learn which
+        # environments held a cached copy.
+        owner_id, flag_key = flag.owner_id, flag.key
+        env_ids = self._env_ids_for(flag)
         flag.delete()
-        self._invalidate_cache(user.id, flag_key)
+        self._invalidate_env_caches(owner_id, flag_key, env_ids)
 
         flag.pk = old_snapshot["id"]
         AuditService.log(
@@ -70,7 +73,7 @@ class FlagService:
         old_snapshot = AuditService.snapshot(flag)
         flag.is_archived = True
         flag.save(update_fields=["is_archived", "updated_at"])
-        self._invalidate_all_env_caches(flag)
+        self.invalidate_flag_caches(flag)
         AuditService.log(
             user=user,
             action=AuditService.ARCHIVE,
@@ -85,7 +88,7 @@ class FlagService:
         old_snapshot = AuditService.snapshot(flag)
         flag.is_archived = False
         flag.save(update_fields=["is_archived", "updated_at"])
-        self._invalidate_all_env_caches(flag)
+        self.invalidate_flag_caches(flag)
         AuditService.log(
             user=user,
             action=AuditService.UNARCHIVE,
@@ -106,7 +109,7 @@ class FlagService:
         variation = Variation.objects.create(
             flag=flag, name=name, value_type=value_type, value=value
         )
-        self._invalidate_all_env_caches(flag)
+        self.invalidate_flag_caches(flag)
         return variation
 
     def update_variation(
@@ -116,14 +119,14 @@ class FlagService:
         for attr, value in kwargs.items():
             setattr(variation, attr, value)
         variation.save()
-        self._invalidate_all_env_caches(variation.flag)
+        self.invalidate_flag_caches(variation.flag)
         return variation
 
     def delete_variation(self, variation: Variation, user) -> None:
         self._assert_owner(variation.flag, user)
         flag = variation.flag
         variation.delete()
-        self._invalidate_all_env_caches(flag)
+        self.invalidate_flag_caches(flag)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -145,20 +148,30 @@ class FlagService:
         if flag.owner_id != user.id:
             raise PermissionDenied("You do not own this flag.")
 
-    @staticmethod
-    def _invalidate_cache(owner_id: int, flag_key: str) -> None:
-        cache.delete(f"flags:{owner_id}:{flag_key}")
+    @classmethod
+    def invalidate_flag_caches(cls, flag: FeatureFlag) -> None:
+        """Evict every environment's cached copy of `flag`.
+
+        Public because rule mutations live outside this service but change the
+        flag's cached targeting config.
+        """
+        cls._invalidate_env_caches(flag.owner_id, flag.key, cls._env_ids_for(flag))
 
     @staticmethod
-    def _invalidate_all_env_caches(flag: FeatureFlag) -> None:
+    def _env_ids_for(flag: FeatureFlag) -> list:
         from apps.environment.models import EnvironmentFlag
+        return list(
+            EnvironmentFlag.objects
+            .filter(feature_flag=flag)
+            .values_list("environment_id", flat=True)
+        )
+
+    @staticmethod
+    def _invalidate_env_caches(owner_id: int, flag_key: str, env_ids) -> None:
         from apps.evaluation.services import FlagEvaluationService
-        env_flags = EnvironmentFlag.objects.filter(
-            feature_flag=flag
-        ).values_list("environment_id", flat=True)
-        for env_id in env_flags:
+        for env_id in env_ids:
             FlagEvaluationService.invalidate_cache(
-                owner_id=flag.owner_id,
-                flag_key=flag.key,
+                owner_id=owner_id,
+                flag_key=flag_key,
                 env_id=env_id,
             )

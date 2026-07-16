@@ -23,15 +23,14 @@ class RuleViewSet(viewsets.ModelViewSet):
         rule = serializer.save()
         # A newly created rule changes the flag's effective targeting config —
         # invalidate the cached flag data so the next evaluation re-reads from DB.
-        FlagService._invalidate_cache(rule.flag.owner_id, rule.flag.key)
+        FlagService.invalidate_flag_caches(rule.flag)
 
     def perform_update(self, serializer):
         rule = serializer.save()
-        FlagService._invalidate_cache(rule.flag.owner_id, rule.flag.key)
+        FlagService.invalidate_flag_caches(rule.flag)
 
     def perform_destroy(self, instance):
-        # Capture identifiers before deletion; they become inaccessible afterwards.
-        owner_id = instance.flag.owner_id
-        flag_key = instance.flag.key
+        # Hold onto the flag before deletion; instance.flag is unreachable after.
+        flag = instance.flag
         instance.delete()
-        FlagService._invalidate_cache(owner_id, flag_key)
+        FlagService.invalidate_flag_caches(flag)

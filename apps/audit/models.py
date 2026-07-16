@@ -19,6 +19,16 @@ class AuditLog(BaseModel):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["entity_type", "entity_id"],
+                name="audit_log_entity_type_id_idx",
+            ),
+            models.Index(
+                fields=["user", "-created_at"],
+                name="audit_log_user_created_at_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.action} on {self.entity_type}({self.entity_id}) by {self.user}"

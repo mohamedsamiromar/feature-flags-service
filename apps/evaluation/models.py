@@ -17,12 +17,19 @@ class EvaluationLog(models.Model):
         null=True,
         db_index=True,
     )
-    result = models.BooleanField()
+    # The served variation value: boolean, string, number, or JSON object.
+    result = models.JSONField()
     context_data = models.JSONField()
     evaluated_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-evaluated_at"]
+        indexes = [
+            models.Index(
+                fields=["flag", "-evaluated_at"],
+                name="eval_log_flag_evaluated_at_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.flag.key} → {self.result} ({self.evaluated_at})"

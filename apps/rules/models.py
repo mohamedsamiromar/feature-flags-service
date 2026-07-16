@@ -28,6 +28,9 @@ class Rule(BaseModel):
 
     class Meta:
         ordering = ["priority"]
+        indexes = [
+            models.Index(fields=["flag", "priority"], name="rules_rule_flag_priority_idx"),
+        ]
 
     def __str__(self):
         return f"{self.flag.key}: {self.attribute} {self.operator} {self.value}"
