@@ -51,6 +51,57 @@ class FeatureFlag(BaseModel):
         return self.key
 
 
+class FlagVersion(BaseModel):
+    """An immutable snapshot of a flag's configuration at a point in time.
+
+    A new row is appended every time the flag's config is created, updated, or
+    rolled back. `snapshot` holds the restorable config (see
+    ``FlagService._snapshot_config``); rolling back reads a prior snapshot and
+    appends a fresh version rather than mutating history.
+    """
+
+    class ChangeAction(models.TextChoices):
+        CREATE = "create", "Create"
+        UPDATE = "update", "Update"
+        ROLLBACK = "rollback", "Rollback"
+
+    flag = models.ForeignKey(
+        FeatureFlag,
+        on_delete=models.CASCADE,
+        related_name="versions",
+    )
+    version_no = models.PositiveIntegerField()
+    snapshot = models.JSONField()
+    change_action = models.CharField(
+        max_length=20,
+        choices=ChangeAction.choices,
+    )
+    # The version this one was rolled back from (null unless change_action is
+    # ``rollback``), so the history reads "v5 is a rollback to v2".
+    source_version_no = models.PositiveIntegerField(null=True, blank=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="flag_versions",
+    )
+
+    class Meta:
+        ordering = ["-version_no"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["flag", "version_no"],
+                name="unique_version_per_flag",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["flag", "-version_no"], name="flag_version_flag_no_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.flag.key} v{self.version_no}"
+
+
 class Variation(BaseModel):
     class ValueType(models.TextChoices):
         BOOLEAN = "boolean", "Boolean"

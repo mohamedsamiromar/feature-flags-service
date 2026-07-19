@@ -86,6 +86,13 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 - **Evaluation guard** — archived flags return `404` from the SDK evaluate endpoint.
 - **Audited** — archive and unarchive both write an `AuditLog` entry.
 
+### Version history & rollback
+
+- **Automatic snapshots** — every flag create and config update appends an immutable `FlagVersion` capturing the restorable config (`name`, `description`, `is_enabled`, `rollout_percentage`, `flag_type`, and the off/fallthrough variation references).
+- **History** — `GET /api/v1/flags/{key}/versions/` lists versions newest-first; `GET /api/v1/flags/{key}/versions/{n}/` returns a single snapshot with who changed it and when.
+- **One-click rollback** — `POST /api/v1/flags/{key}/versions/{n}/rollback/` restores that snapshot onto the live flag. Rollback is append-only: it writes a new `rollback` version (recording the `source_version_no`) rather than rewriting history, invalidates every environment's cache, and writes an `AuditLog` entry.
+- **Safe restores** — variation references that no longer exist are dropped to `null` on rollback rather than left dangling; rolling back an archived flag returns `409 Conflict`.
+
 ### Multi-environment
 
 - **Environment model** — named environments (`development`, `staging`, `production`) owned by a user. Deleting one cascades to its SDK keys and per-environment flag states.
@@ -302,7 +309,7 @@ Nothing below is built.
 
 - **Targeting** — individual user targeting, reusable segments, prerequisite flags, rule-level rollout within a segment.
 - **SDK infrastructure** — bulk flag download, impression batching, SSE streaming of flag updates.
-- **Workflow** — flag version history and rollback, stale flag detection, scheduled changes, webhooks, approval workflows.
+- **Workflow** — stale flag detection, scheduled changes, webhooks, approval workflows.
 - **Analytics** — impression aggregation, data export.
 - **Experimentation** — A/B testing framework, statistical significance reporting.
 - **Enterprise** — projects/organizations, RBAC, SSO and SCIM.

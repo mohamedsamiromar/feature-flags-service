@@ -340,7 +340,7 @@ Per the project memory: **core engine complete (2026-05-25)**, **143 tests passi
 Straight from `README.md`, with Phase-1 status reflecting the current code.
 
 **Phase 1 — foundational data model** (nearly done)
-- [ ] Flag **version history + one-click rollback** ← *remaining*
+- [x] Flag **version history + one-click rollback**
 - [ ] **Projects & Organizations** (team-level multi-tenancy) ← *remaining*
 - [x] Archive/soft-delete, toggle endpoint, environments, SDK keys, multivariate flags
 
