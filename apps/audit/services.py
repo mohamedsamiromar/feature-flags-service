@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.forms.models import model_to_dict
 
 from apps.audit.models import AuditLog
+from apps.audit.queries import AuditQuery
 
 
 class AuditService:
@@ -30,6 +31,7 @@ class AuditService:
     ARCHIVE = "archive"
     UNARCHIVE = "unarchive"
     TOGGLE = "toggle"
+    ROLLBACK = "rollback"
 
     @classmethod
     def log(
@@ -54,7 +56,7 @@ class AuditService:
         Returns:
             The newly created AuditLog instance.
         """
-        return AuditLog.objects.create(
+        return AuditQuery.create(
             user=user,
             action=action,
             entity_type=entity._meta.model_name,

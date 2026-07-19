@@ -1,5 +1,5 @@
 from apps.rules.models import Operator
-from apps.core.exceptions import InvalidOperatorError
+from apps.core.errors import APIError, Error
 
 
 class RuleEvaluator:
@@ -40,4 +40,4 @@ class RuleEvaluator:
             return float(user_value) > float(rule_value)
         elif operator == Operator.LT:
             return float(user_value) < float(rule_value)
-        raise InvalidOperatorError(f"Unknown operator: '{operator}'")
+        raise APIError(Error.INVALID_OPERATOR, extra=[operator])

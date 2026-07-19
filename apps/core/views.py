@@ -1,11 +1,10 @@
-import uuid
-
-from django.core.cache import cache
-from django.db import connection, OperationalError
-from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.core.services import HealthService
+
+_health = HealthService()
 
 
 class HealthCheckView(APIView):
@@ -24,6 +23,7 @@ class HealthCheckView(APIView):
 
     Authentication is intentionally disabled so that infrastructure probes
     (ALB, k8s kubelet, Caddy) can reach this endpoint without a JWT token.
+    The probe logic lives in HealthService; this view only renders the result.
     """
 
     permission_classes = [AllowAny]
@@ -32,39 +32,5 @@ class HealthCheckView(APIView):
     throttle_classes = []
 
     def get(self, request):
-        checks = {}
-        failed = False
-
-        # ------------------------------------------------------------------
-        # Database probe — a single-row SELECT costs essentially nothing and
-        # confirms that the connection pool and PostgreSQL are reachable.
-        # ------------------------------------------------------------------
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT 1")
-            checks["database"] = "ok"
-        except OperationalError as exc:
-            checks["database"] = f"error: {exc}"
-            failed = True
-
-        # ------------------------------------------------------------------
-        # Redis probe — write a unique sentinel and read it back to confirm
-        # both write and read paths work.  A unique value prevents a stale
-        # cached result from masking a Redis failure.
-        # ------------------------------------------------------------------
-        try:
-            sentinel_key = f"healthz:{uuid.uuid4().hex}"
-            cache.set(sentinel_key, "1", timeout=5)
-            if cache.get(sentinel_key) != "1":
-                raise RuntimeError("sentinel value mismatch")
-            cache.delete(sentinel_key)
-            checks["cache"] = "ok"
-        except Exception as exc:  # noqa: BLE001
-            checks["cache"] = f"error: {exc}"
-            failed = True
-
-        # ------------------------------------------------------------------
-        # Response
-        # ------------------------------------------------------------------
-        http_status = status.HTTP_503_SERVICE_UNAVAILABLE if failed else status.HTTP_200_OK
-        return Response({"status": "error" if failed else "ok", "checks": checks}, status=http_status)
+        result = _health.check()
+        return Response(result.body, status=result.http_status)

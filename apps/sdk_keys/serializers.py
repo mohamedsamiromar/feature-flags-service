@@ -22,10 +22,5 @@ class SDKKeyCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100)
     key_type = serializers.ChoiceField(choices=SDKKey.KeyType.choices)
     environment = serializers.IntegerField(help_text="Environment ID")
-
-    def validate_environment(self, value: int) -> int:
-        user = self.context["request"].user
-        from apps.environment.models import Environment
-        if not Environment.objects.filter(pk=value, owner=user).exists():
-            raise serializers.ValidationError("Environment not found or not owned by you.")
-        return value
+    # Environment ownership is enforced in SDKKeyService.create_key (business
+    # rule + DB access belong in the service/query layers, not the serializer).

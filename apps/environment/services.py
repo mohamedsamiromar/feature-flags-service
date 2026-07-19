@@ -1,16 +1,34 @@
 from django.core.cache import cache
 
 from apps.audit.services import AuditService
-from apps.environment.models import EnvironmentFlag
+from apps.environment.models import Environment, EnvironmentFlag
+from apps.environment.queries import EnvironmentFlagQuery, EnvironmentQuery
+
+
+class EnvironmentService:
+    """Business logic for environments; delegates persistence to the query layer."""
+
+    def create(self, user, **validated_data) -> Environment:
+        return EnvironmentQuery.create(owner=user, **validated_data)
+
+    def delete(self, environment: Environment) -> None:
+        EnvironmentQuery.delete(environment)
+
+    def list_flags(self, environment):
+        return EnvironmentFlagQuery.list_for_env(environment)
 
 
 class EnvironmentFlagService:
     """Owns all mutations to EnvironmentFlag, including cache invalidation."""
 
+    def update_state_for_env(self, environment, flag_id, validated_data: dict) -> EnvironmentFlag:
+        env_flag = EnvironmentFlagQuery.get_for_env(environment, flag_id)
+        return self.update_state(env_flag, validated_data)
+
     def update_state(self, env_flag: EnvironmentFlag, validated_data: dict) -> EnvironmentFlag:
         for attr, value in validated_data.items():
             setattr(env_flag, attr, value)
-        env_flag.save()
+        EnvironmentFlagQuery.save(env_flag)
 
         self._invalidate_cache(env_flag)
         return env_flag
@@ -19,7 +37,7 @@ class EnvironmentFlagService:
         """Flip the per-environment kill switch and record the change."""
         old_snapshot = AuditService.snapshot(env_flag)
         env_flag.is_enabled = not env_flag.is_enabled
-        env_flag.save(update_fields=["is_enabled", "updated_at"])
+        EnvironmentFlagQuery.save(env_flag, update_fields=["is_enabled", "updated_at"])
 
         self._invalidate_cache(env_flag)
         AuditService.log(

@@ -5,8 +5,7 @@ from typing import Any, Optional
 from django.conf import settings as django_settings
 from django.core.cache import cache
 
-from apps.core.exceptions import FlagNotFoundError
-from apps.environment.models import EnvironmentFlag
+from apps.evaluation.queries import EvaluationQuery
 from apps.targeting.services import RuleEvaluator
 
 CACHE_TTL = getattr(django_settings, "FLAG_CACHE_TTL", 300)
@@ -57,21 +56,7 @@ class FlagEvaluationService:
         if cached is not None:
             return cached
 
-        try:
-            env_flag = (
-                EnvironmentFlag.objects
-                .select_related("feature_flag__off_variation", "feature_flag__fallthrough_variation")
-                .prefetch_related("feature_flag__rules__serve_variation")
-                .get(
-                    feature_flag__key=flag_key,
-                    feature_flag__owner_id=owner_id,
-                    feature_flag__is_archived=False,
-                    environment_id=env_id,
-                )
-            )
-        except EnvironmentFlag.DoesNotExist:
-            raise FlagNotFoundError(f"Flag '{flag_key}' not found in environment '{env_id}'")
-
+        env_flag = EvaluationQuery.get_active_env_flag(flag_key, owner_id, env_id)
         flag = env_flag.feature_flag
 
         def _variation_dict(v):

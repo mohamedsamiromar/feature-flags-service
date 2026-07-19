@@ -1,6 +1,22 @@
 from rest_framework import serializers
 
-from apps.flags.models import FeatureFlag, Variation
+from apps.flags.models import FeatureFlag, FlagVersion, Variation
+
+
+class FlagVersionSerializer(serializers.ModelSerializer):
+    changed_by = serializers.StringRelatedField()
+
+    class Meta:
+        model = FlagVersion
+        fields = [
+            "version_no",
+            "change_action",
+            "source_version_no",
+            "snapshot",
+            "changed_by",
+            "created_at",
+        ]
+        read_only_fields = fields
 
 
 class VariationSerializer(serializers.ModelSerializer):
@@ -32,14 +48,3 @@ class FeatureFlagSerializer(serializers.ModelSerializer):
                 "rollout_percentage must be between 0 and 100."
             )
         return value
-
-    def validate(self, attrs):
-        flag = self.instance
-        for field in ("off_variation", "fallthrough_variation"):
-            variation = attrs.get(field)
-            if variation is not None and flag is not None:
-                if variation.flag_id != flag.id:
-                    raise serializers.ValidationError(
-                        {field: "Variation does not belong to this flag."}
-                    )
-        return attrs

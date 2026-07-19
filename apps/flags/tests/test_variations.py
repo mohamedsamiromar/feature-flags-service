@@ -45,14 +45,16 @@ class TestBooleanVariationAutoCreate:
 class TestVariationService:
     def test_create_variation_links_to_flag(self, user, flag):
         v = _service.create_variation(
-            flag=flag, user=user, name="red", value_type="string", value="red"
+            key=flag.key, user=user, name="red", value_type="string", value="red"
         )
         assert v.flag_id == flag.id
         assert v.value == "red"
 
     def test_update_variation_persists(self, user, flag):
         v = VariationFactory(flag=flag, name="v1", value_type="string", value="old")
-        updated = _service.update_variation(variation=v, user=user, value="new")
+        updated = _service.update_variation(
+            key=flag.key, user=user, variation_id=v.id, value="new"
+        )
         v.refresh_from_db()
         assert updated.value == "new"
         assert v.value == "new"
@@ -60,16 +62,17 @@ class TestVariationService:
     def test_delete_variation_removes_from_db(self, user, flag):
         v = VariationFactory(flag=flag)
         pk = v.pk
-        _service.delete_variation(variation=v, user=user)
+        _service.delete_variation(key=flag.key, user=user, variation_id=v.id)
         assert not Variation.objects.filter(pk=pk).exists()
 
     def test_create_variation_raises_for_non_owner(self, flag):
         from conftest import UserFactory
-        from django.core.exceptions import PermissionDenied
+        from apps.core.errors import APIError
         other = UserFactory()
-        with pytest.raises(PermissionDenied):
+        # Owner-scoped lookup: another user's flag is invisible (404), not a 403.
+        with pytest.raises(APIError):
             _service.create_variation(
-                flag=flag, user=other, name="x", value_type="boolean", value=True
+                key=flag.key, user=other, name="x", value_type="boolean", value=True
             )
 
 

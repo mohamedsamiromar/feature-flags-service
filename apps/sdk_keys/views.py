@@ -2,7 +2,7 @@ from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.sdk_keys.models import SDKKey
+from apps.sdk_keys.queries import SDKKeyQuery
 from apps.sdk_keys.serializers import SDKKeyCreateSerializer, SDKKeySerializer
 from apps.sdk_keys.services import SDKKeyService
 
@@ -29,12 +29,7 @@ class SDKKeyViewSet(
     serializer_class = SDKKeySerializer
 
     def get_queryset(self):
-        return (
-            SDKKey.objects
-            .filter(environment__owner=self.request.user)
-            .select_related("environment")
-            .order_by("-created_at")
-        )
+        return SDKKeyQuery.list_for_owner(self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = SDKKeyCreateSerializer(data=request.data, context={"request": request})
@@ -54,16 +49,12 @@ class SDKKeyViewSet(
 
     @action(detail=True, methods=["post"])
     def revoke(self, request, pk=None):
-        sdk_key = self.get_object()
-        if not sdk_key.is_active:
-            return Response({"detail": "Key is already revoked."}, status=status.HTTP_409_CONFLICT)
-        _service.revoke(sdk_key=sdk_key, user=request.user)
+        sdk_key = _service.revoke(pk=pk, user=request.user)
         return Response(SDKKeySerializer(sdk_key).data)
 
     @action(detail=True, methods=["post"])
     def rotate(self, request, pk=None):
-        old_key = self.get_object()
-        new_key, full_key = _service.rotate(sdk_key=old_key, user=request.user)
+        new_key, full_key = _service.rotate(pk=pk, user=request.user)
         data = SDKKeySerializer(new_key).data
         data["key"] = full_key
         return Response(data, status=status.HTTP_201_CREATED)

@@ -1,9 +1,8 @@
-from rest_framework import permissions, status
+from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.core.exceptions import FlagNotFoundError
 from apps.evaluation.services import FlagEvaluationService
 from apps.evaluation.tasks import log_evaluation
 from apps.sdk.serializers import SDKEvaluateRequestSerializer, SDKEvaluateResponseSerializer
@@ -39,15 +38,12 @@ class SDKEvaluateFlagView(APIView):
         flag_key = serializer.validated_data["flag_key"]
         user_context = serializer.validated_data["user_context"]
 
-        try:
-            evaluation = _eval_service.evaluate(
-                flag_key=flag_key,
-                owner_id=sdk_key.environment.owner_id,
-                user_context=user_context,
-                env_id=sdk_key.environment_id,
-            )
-        except FlagNotFoundError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        evaluation = _eval_service.evaluate(
+            flag_key=flag_key,
+            owner_id=sdk_key.environment.owner_id,
+            user_context=user_context,
+            env_id=sdk_key.environment_id,
+        )
 
         log_evaluation.delay(
             flag_id=evaluation.flag_id,

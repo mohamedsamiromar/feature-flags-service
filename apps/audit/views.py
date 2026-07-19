@@ -1,6 +1,6 @@
 from rest_framework import mixins, permissions, viewsets
 
-from apps.audit.models import AuditLog
+from apps.audit.queries import AuditQuery
 from apps.audit.serializers import AuditLogSerializer
 
 
@@ -15,4 +15,4 @@ class AuditLogViewSet(
     serializer_class = AuditLogSerializer
 
     def get_queryset(self):
-        return AuditLog.objects.filter(user=self.request.user)
+        return AuditQuery.list_for_user(self.request.user)
