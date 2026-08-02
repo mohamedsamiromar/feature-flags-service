@@ -23,9 +23,9 @@ class FlagEvaluationService:
     _rule_evaluator = RuleEvaluator()
 
     def evaluate(
-        self, flag_key: str, owner_id: int, user_context: dict, env_id: int
+        self, flag_key: str, project_id: int, user_context: dict, env_id: int
     ) -> EvaluationResult:
-        flag_data = self._get_flag_data(flag_key, owner_id, env_id)
+        flag_data = self._get_flag_data(flag_key, project_id, env_id)
 
         if not flag_data["is_enabled"]:
             return self._from_variation(flag_key, flag_data, flag_data["off_variation"])
@@ -50,13 +50,13 @@ class FlagEvaluationService:
             )
         return self._from_variation(flag_key, flag_data, flag_data["off_variation"], default=False)
 
-    def _get_flag_data(self, flag_key: str, owner_id: int, env_id: int) -> dict:
-        cache_key = f"flags:{owner_id}:{env_id}:{flag_key}"
+    def _get_flag_data(self, flag_key: str, project_id: int, env_id: int) -> dict:
+        cache_key = f"flags:{project_id}:{env_id}:{flag_key}"
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
-        env_flag = EvaluationQuery.get_active_env_flag(flag_key, owner_id, env_id)
+        env_flag = EvaluationQuery.get_active_env_flag(flag_key, project_id, env_id)
         flag = env_flag.feature_flag
 
         def _variation_dict(v):
@@ -105,8 +105,8 @@ class FlagEvaluationService:
         )
 
     @staticmethod
-    def invalidate_cache(owner_id: int, flag_key: str, env_id: int) -> None:
-        cache.delete(f"flags:{owner_id}:{env_id}:{flag_key}")
+    def invalidate_cache(project_id: int, flag_key: str, env_id: int) -> None:
+        cache.delete(f"flags:{project_id}:{env_id}:{flag_key}")
 
     @staticmethod
     def _apply_rollout(flag_key: str, user_id: str, rollout_percentage: int) -> bool:

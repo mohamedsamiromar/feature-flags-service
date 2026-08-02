@@ -44,6 +44,7 @@ INSTALLED_APPS = [
 
     "apps.core",
     "apps.accounts",
+    "apps.organizations",
     "apps.flags",
     "apps.rules",
     "apps.targeting",

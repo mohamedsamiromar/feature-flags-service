@@ -8,8 +8,8 @@ from apps.environment.queries import EnvironmentFlagQuery, EnvironmentQuery
 class EnvironmentService:
     """Business logic for environments; delegates persistence to the query layer."""
 
-    def create(self, user, **validated_data) -> Environment:
-        return EnvironmentQuery.create(owner=user, **validated_data)
+    def create(self, project, **validated_data) -> Environment:
+        return EnvironmentQuery.create(project=project, **validated_data)
 
     def delete(self, environment: Environment) -> None:
         EnvironmentQuery.delete(environment)
@@ -52,4 +52,4 @@ class EnvironmentFlagService:
     @staticmethod
     def _invalidate_cache(env_flag: EnvironmentFlag) -> None:
         env = env_flag.environment
-        cache.delete(f"flags:{env.owner_id}:{env.id}:{env_flag.feature_flag.key}")
+        cache.delete(f"flags:{env.project_id}:{env.id}:{env_flag.feature_flag.key}")

@@ -27,9 +27,11 @@ class TestFeatureFlagArchiveField:
 
     def test_archived_flag_excluded_from_default_queryset_in_filter(self, user):
         from apps.flags.models import FeatureFlag
-        FeatureFlagFactory(owner=user, is_archived=True)
-        FeatureFlagFactory(owner=user, is_archived=False)
-        active = FeatureFlag.objects.filter(owner=user, is_archived=False)
-        archived = FeatureFlag.objects.filter(owner=user, is_archived=True)
+        from conftest import personal_project_for
+        project = personal_project_for(user)
+        FeatureFlagFactory(project=project, is_archived=True)
+        FeatureFlagFactory(project=project, is_archived=False)
+        active = FeatureFlag.objects.filter(project=project, is_archived=False)
+        archived = FeatureFlag.objects.filter(project=project, is_archived=True)
         assert active.count() == 1
         assert archived.count() == 1

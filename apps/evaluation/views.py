@@ -17,6 +17,7 @@ class EvaluationLogViewSet(
     def get_queryset(self):
         return (
             EvaluationLog.objects
-            .filter(flag__owner=self.request.user)
+            .filter(flag__project__organization__memberships__user=self.request.user)
             .select_related("flag")
+            .distinct()
         )

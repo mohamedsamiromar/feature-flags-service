@@ -1,4 +1,3 @@
-from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -7,6 +6,7 @@ from apps.evaluation.services import FlagEvaluationService
 from apps.evaluation.tasks import log_evaluation
 from apps.sdk.serializers import SDKEvaluateRequestSerializer, SDKEvaluateResponseSerializer
 from apps.sdk_keys.authentication import SDKKeyAuthentication
+from apps.sdk_keys.permissions import HasSDKKey
 
 _eval_service = FlagEvaluationService()
 
@@ -23,7 +23,7 @@ class SDKEvaluateFlagView(APIView):
     """
 
     authentication_classes = [SDKKeyAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [HasSDKKey]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "evaluation"
 
@@ -40,14 +40,15 @@ class SDKEvaluateFlagView(APIView):
 
         evaluation = _eval_service.evaluate(
             flag_key=flag_key,
-            owner_id=sdk_key.environment.owner_id,
+            project_id=sdk_key.environment.project_id,
             user_context=user_context,
             env_id=sdk_key.environment_id,
         )
 
         log_evaluation.delay(
             flag_id=evaluation.flag_id,
-            user_id=request.user.id,
+            # No user behind an SDK request — the key is the principal.
+            user_id=None,
             result=evaluation.result,
             context_data=user_context,
         )

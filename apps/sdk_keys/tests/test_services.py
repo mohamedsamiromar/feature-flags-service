@@ -83,54 +83,54 @@ class TestCreateKey:
 @pytest.mark.django_db
 class TestRevokeKey:
     def test_revoke_sets_is_active_false(self, sdk_key, user, environment):
-        service.revoke(pk=sdk_key.pk, user=environment.owner)
+        service.revoke(pk=sdk_key.pk, user=user)
         sdk_key.refresh_from_db()
         assert sdk_key.is_active is False
 
-    def test_revoke_persists_to_db(self, sdk_key, environment):
-        service.revoke(pk=sdk_key.pk, user=environment.owner)
+    def test_revoke_persists_to_db(self, user, sdk_key, environment):
+        service.revoke(pk=sdk_key.pk, user=user)
         refreshed = SDKKey.objects.get(pk=sdk_key.pk)
         assert refreshed.is_active is False
 
-    def test_revoke_raises_not_found_for_non_owner(self, sdk_key):
+    def test_revoke_raises_not_found_for_non_owner(self, user, sdk_key):
         other_user = UserFactory()
         with pytest.raises(APIError):
             service.revoke(pk=sdk_key.pk, user=other_user)
 
-    def test_revoke_returns_sdk_key(self, sdk_key, environment):
-        result = service.revoke(pk=sdk_key.pk, user=environment.owner)
+    def test_revoke_returns_sdk_key(self, user, sdk_key, environment):
+        result = service.revoke(pk=sdk_key.pk, user=user)
         assert result.pk == sdk_key.pk
         assert result.is_active is False
 
 
 @pytest.mark.django_db
 class TestRotateKey:
-    def test_rotate_deactivates_old_key(self, sdk_key, environment):
-        service.rotate(pk=sdk_key.pk, user=environment.owner)
+    def test_rotate_deactivates_old_key(self, user, sdk_key, environment):
+        service.rotate(pk=sdk_key.pk, user=user)
         sdk_key.refresh_from_db()
         assert sdk_key.is_active is False
 
-    def test_rotate_creates_new_key(self, sdk_key, environment):
-        new_key, _ = service.rotate(pk=sdk_key.pk, user=environment.owner)
+    def test_rotate_creates_new_key(self, user, sdk_key, environment):
+        new_key, _ = service.rotate(pk=sdk_key.pk, user=user)
         assert new_key.pk != sdk_key.pk
         assert new_key.is_active is True
 
-    def test_rotate_returns_new_full_key(self, sdk_key, environment):
-        new_key, full_key = service.rotate(pk=sdk_key.pk, user=environment.owner)
+    def test_rotate_returns_new_full_key(self, user, sdk_key, environment):
+        new_key, full_key = service.rotate(pk=sdk_key.pk, user=user)
         assert full_key.startswith("sdk_srv_")
         assert new_key.hashed_key == KeyGenerator.hash_raw(full_key)
 
-    def test_rotate_preserves_name_and_key_type(self, environment):
+    def test_rotate_preserves_name_and_key_type(self, user, environment):
         original = SDKKeyFactory(
             environment=environment,
             name="Prod Key",
             key_type=SDKKey.KeyType.SERVER,
         )
-        new_key, _ = service.rotate(pk=original.pk, user=environment.owner)
+        new_key, _ = service.rotate(pk=original.pk, user=user)
         assert new_key.name == original.name
         assert new_key.key_type == original.key_type
         assert new_key.environment_id == original.environment_id
 
-    def test_rotate_raises_not_found_for_non_owner(self, sdk_key):
+    def test_rotate_raises_not_found_for_non_owner(self, user, sdk_key):
         with pytest.raises(APIError):
             service.rotate(pk=sdk_key.pk, user=UserFactory())

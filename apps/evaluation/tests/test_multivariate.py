@@ -27,14 +27,14 @@ _flag_service = FlagService()
 @pytest.mark.django_db
 class TestBooleanFlagEvaluation:
     def test_enabled_boolean_flag_returns_true_bool(self, user, environment):
-        flag = _flag_service.create_flag(user=user, name="F", key="ev-bool-on")
+        flag = _flag_service.create_flag(project_key=environment.project.key, user=user, name="F", key="ev-bool-on")
         EnvironmentFlagFactory(
             feature_flag=flag, environment=environment,
             is_enabled=True, rollout_percentage=100,
         )
         result = _eval_service.evaluate(
             flag_key="ev-bool-on",
-            owner_id=user.id,
+            project_id=environment.project_id,
             user_context={"user_id": "u1"},
             env_id=environment.id,
         )
@@ -42,14 +42,14 @@ class TestBooleanFlagEvaluation:
         assert result.result_type == "boolean"
 
     def test_disabled_boolean_flag_returns_false_bool(self, user, environment):
-        flag = _flag_service.create_flag(user=user, name="F", key="ev-bool-off")
+        flag = _flag_service.create_flag(project_key=environment.project.key, user=user, name="F", key="ev-bool-off")
         EnvironmentFlagFactory(
             feature_flag=flag, environment=environment,
             is_enabled=False,
         )
         result = _eval_service.evaluate(
             flag_key="ev-bool-off",
-            owner_id=user.id,
+            project_id=environment.project_id,
             user_context={"user_id": "u1"},
             env_id=environment.id,
         )
@@ -79,7 +79,7 @@ class TestMultivariateFlagEvaluation:
         self._make_mv_flag(user, environment, "mv-1")
         result = _eval_service.evaluate(
             flag_key="mv-1",
-            owner_id=user.id,
+            project_id=environment.project_id,
             user_context={"user_id": "u1"},
             env_id=environment.id,
         )
@@ -102,7 +102,7 @@ class TestMultivariateFlagEvaluation:
         )
         result = _eval_service.evaluate(
             flag_key="mv-off",
-            owner_id=user.id,
+            project_id=environment.project_id,
             user_context={"user_id": "u1"},
             env_id=environment.id,
         )
@@ -124,7 +124,7 @@ class TestMultivariateFlagEvaluation:
         )
         result = _eval_service.evaluate(
             flag_key="mv-json",
-            owner_id=user.id,
+            project_id=environment.project_id,
             user_context={"user_id": "u1"},
             env_id=environment.id,
         )
@@ -146,7 +146,7 @@ class TestMultivariateFlagEvaluation:
         )
         result = _eval_service.evaluate(
             flag_key="mv-num",
-            owner_id=user.id,
+            project_id=environment.project_id,
             user_context={"user_id": "u1"},
             env_id=environment.id,
         )
@@ -161,7 +161,7 @@ class TestMultivariateFlagEvaluation:
 @pytest.mark.django_db
 class TestSDKEvaluateMultivariate:
     def test_response_includes_result_type_for_boolean_flag(self, user, environment):
-        flag = _flag_service.create_flag(user=user, name="F", key="sdk-bool")
+        flag = _flag_service.create_flag(project_key=environment.project.key, user=user, name="F", key="sdk-bool")
         EnvironmentFlagFactory(
             feature_flag=flag, environment=environment,
             is_enabled=True, rollout_percentage=100,

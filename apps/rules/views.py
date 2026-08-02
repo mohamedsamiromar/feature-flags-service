@@ -12,7 +12,7 @@ class RuleViewSet(viewsets.ModelViewSet):
     serializer_class = RuleSerializer
 
     def get_queryset(self):
-        return RuleQuery.list_for_owner(self.request.user)
+        return RuleQuery.list_for_member(self.request.user)
 
     def perform_create(self, serializer):
         serializer.instance = _service.create(
@@ -25,4 +25,4 @@ class RuleViewSet(viewsets.ModelViewSet):
         )
 
     def perform_destroy(self, instance):
-        _service.delete(instance)
+        _service.delete(self.request.user, instance)

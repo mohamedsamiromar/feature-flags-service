@@ -1,3 +1,4 @@
+from django.contrib.auth.models import AnonymousUser
 from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
@@ -10,12 +11,15 @@ class SDKKeyAuthentication(BaseAuthentication):
     """
     Authenticates requests carrying an X-SDK-Key header.
 
-    On success returns (environment.owner, sdk_key) so:
-      - request.user  → the flag-owning User (for existing service logic)
-      - request.auth  → the SDKKey instance (for env_id and key_type checks)
+    The SDK key itself is the principal — there is no user behind an SDK request
+    now that flags belong to projects rather than users. On success returns
+    (AnonymousUser, sdk_key) so:
+      - request.auth  → the SDKKey instance (project/env + key_type live here)
+      - request.user  → AnonymousUser
 
-    Returns None if the header is absent so DRF falls through to the next
-    authentication class (JWT). Raises AuthenticationFailed on a bad key.
+    Endpoints authorize via ``HasSDKKey`` (checks request.auth), not
+    IsAuthenticated. Returns None if the header is absent so DRF falls through to
+    the next authentication class (JWT). Raises AuthenticationFailed on a bad key.
     """
 
     HEADER = "HTTP_X_SDK_KEY"
@@ -29,7 +33,7 @@ class SDKKeyAuthentication(BaseAuthentication):
         try:
             sdk_key = (
                 SDKKey.objects
-                .select_related("environment__owner")
+                .select_related("environment__project")
                 .get(hashed_key=hashed, is_active=True)
             )
         except SDKKey.DoesNotExist:
@@ -38,7 +42,7 @@ class SDKKeyAuthentication(BaseAuthentication):
         # Non-blocking timestamp update — use update() to skip model signals
         SDKKey.objects.filter(pk=sdk_key.pk).update(last_used_at=timezone.now())
 
-        return (sdk_key.environment.owner, sdk_key)
+        return (AnonymousUser(), sdk_key)
 
     def authenticate_header(self, request):
         return "X-SDK-Key"

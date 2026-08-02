@@ -32,10 +32,11 @@ class TestSDKKeyAuthentication:
         request = make_request()
         assert auth.authenticate(request) is None
 
-    def test_valid_key_returns_user_and_sdk_key(self, sdk_key, environment):
+    def test_valid_key_returns_anonymous_user_and_sdk_key(self, sdk_key):
+        # The SDK key is the principal; there is no user behind an SDK request.
         request = make_request(sdk_key._full_key)
         user, returned_key = auth.authenticate(request)
-        assert user == environment.owner
+        assert user.is_authenticated is False
         assert returned_key.pk == sdk_key.pk
 
     def test_valid_key_authenticate_header(self):
@@ -68,4 +69,4 @@ class TestSDKKeyAuthentication:
         request = make_request(client_key._full_key)
         user, returned_key = auth.authenticate(request)
         assert returned_key.key_type == SDKKey.KeyType.CLIENT
-        assert user == environment.owner
+        assert user.is_authenticated is False

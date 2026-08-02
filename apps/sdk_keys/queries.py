@@ -6,24 +6,26 @@ from apps.sdk_keys.models import SDKKey
 
 class SDKKeyQuery:
     @staticmethod
-    def get_owned(pk, user) -> SDKKey:
-        """Owner-scoped fetch (ownership runs through the environment). 404 if not visible."""
+    def get_for_member(pk, user) -> SDKKey:
+        """Membership-scoped fetch (access runs through the environment's
+        project). 404 if not visible to the caller."""
         try:
             return (
                 SDKKey.objects
-                .select_related("environment")
-                .get(pk=pk, environment__owner=user)
+                .select_related("environment__project")
+                .get(pk=pk, environment__project__organization__memberships__user=user)
             )
         except SDKKey.DoesNotExist:
             raise APIError(Error.INSTANCE_NOT_FOUND, extra=["SDK key"])
 
     @staticmethod
-    def list_for_owner(user):
+    def list_for_member(user):
         return (
             SDKKey.objects
-            .filter(environment__owner=user)
+            .filter(environment__project__organization__memberships__user=user)
             .select_related("environment")
             .order_by("-created_at")
+            .distinct()
         )
 
     @staticmethod
