@@ -5,10 +5,16 @@ from apps.rules.models import Rule
 
 class RuleQuery:
     @staticmethod
-    def list_for_owner(user):
-        # select_related("flag") lets cache-invalidation read flag.owner_id /
-        # flag.key without extra queries.
-        return Rule.objects.filter(flag__owner=user).select_related("flag")
+    def list_for_member(user):
+        # select_related("flag") lets cache-invalidation read flag.project_id /
+        # flag.key without extra queries. distinct() guards against row fan-out
+        # from the membership join.
+        return (
+            Rule.objects
+            .filter(flag__project__organization__memberships__user=user)
+            .select_related("flag")
+            .distinct()
+        )
 
     @staticmethod
     def create(**fields) -> Rule:

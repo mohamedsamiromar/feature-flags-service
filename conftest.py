@@ -3,6 +3,12 @@ Shared factories and fixtures used across all test modules.
 
 Factories produce model instances with sensible defaults; override fields
 by passing kwargs. Fixtures wire up the DRF test client and authenticate it.
+
+Tenancy note: flags and environments belong to a *project*, not a user. To keep
+the large existing test surface readable, ``FeatureFlagFactory`` and
+``EnvironmentFactory`` accept an ``owner=<user>`` shim: the object is placed in
+that user's deterministic personal project (auto-created with the user as
+OWNER). Passing ``project=`` explicitly overrides the shim.
 """
 
 import factory
@@ -12,10 +18,34 @@ from rest_framework.test import APIClient
 
 from apps.environment.models import Environment, EnvironmentFlag
 from apps.flags.models import FeatureFlag, Variation
+from apps.organizations.models import Membership, Organization, Project, Role
 from apps.sdk_keys.key_generator import KeyGenerator
 from apps.sdk_keys.models import SDKKey
 
 User = get_user_model()
+
+
+# ---------------------------------------------------------------------------
+# Tenancy helpers
+# ---------------------------------------------------------------------------
+
+def personal_project_for(user, role=Role.OWNER) -> Project:
+    """Deterministic per-user org + project so that a flag and an environment
+    created with the same ``owner`` land in the *same* project."""
+    org, _ = Organization.objects.get_or_create(
+        slug=f"org-{user.id}", defaults={"name": f"Org {user.id}"}
+    )
+    Membership.objects.get_or_create(
+        organization=org, user=user, defaults={"role": role}
+    )
+    # Reuse the org's existing project so a flag and an environment created for
+    # the same user (via factory or the `project` fixture) share one project.
+    project = Project.objects.filter(organization=org).first()
+    if project is None:
+        project = Project.objects.create(
+            organization=org, name="Default", key=f"proj-{user.id}"
+        )
+    return project
 
 
 # ---------------------------------------------------------------------------
@@ -32,11 +62,50 @@ class UserFactory(factory.django.DjangoModelFactory):
     password = factory.PostGenerationMethodCall("set_password", "testpass123")
 
 
-class FeatureFlagFactory(factory.django.DjangoModelFactory):
+class OrganizationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Organization
+
+    name = factory.Sequence(lambda n: f"Org {n}")
+    slug = factory.Sequence(lambda n: f"org-slug-{n}")
+
+
+class MembershipFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Membership
+
+    organization = factory.SubFactory(OrganizationFactory)
+    user = factory.SubFactory(UserFactory)
+    role = Role.MEMBER
+
+
+class ProjectFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Project
+
+    organization = factory.SubFactory(OrganizationFactory)
+    name = factory.Sequence(lambda n: f"Project {n}")
+    key = factory.Sequence(lambda n: f"project-{n}")
+
+
+class _OwnerShimFactory(factory.django.DjangoModelFactory):
+    """Base for project-scoped models that accept an ``owner=`` shim."""
+
+    class Meta:
+        abstract = True
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        owner = kwargs.pop("owner", None)
+        if kwargs.get("project") is None:
+            kwargs["project"] = personal_project_for(owner or UserFactory())
+        return super()._create(model_class, *args, **kwargs)
+
+
+class FeatureFlagFactory(_OwnerShimFactory):
     class Meta:
         model = FeatureFlag
 
-    owner = factory.SubFactory(UserFactory)
     name = factory.Sequence(lambda n: f"Flag {n}")
     key = factory.Sequence(lambda n: f"flag-{n}")
     description = ""
@@ -45,11 +114,10 @@ class FeatureFlagFactory(factory.django.DjangoModelFactory):
     is_archived = False
 
 
-class EnvironmentFactory(factory.django.DjangoModelFactory):
+class EnvironmentFactory(_OwnerShimFactory):
     class Meta:
         model = Environment
 
-    owner = factory.SubFactory(UserFactory)
     name = "production"
 
 
@@ -58,7 +126,7 @@ class EnvironmentFlagFactory(factory.django.DjangoModelFactory):
         model = EnvironmentFlag
 
     # feature_flag and environment must be provided explicitly so their
-    # owners match — do NOT use SubFactory here or unique_together will fail.
+    # projects match — do NOT use SubFactory here or unique_together will fail.
     is_enabled = True
     rollout_percentage = 100
 
@@ -124,18 +192,36 @@ def auth_client(user):
 
 
 @pytest.fixture
-def flag(user, db):
-    return FeatureFlagFactory(owner=user)
+def project(user, db):
+    """The authenticated user's personal project (user is its OWNER)."""
+    return personal_project_for(user)
 
 
 @pytest.fixture
-def environment(user, db):
-    return EnvironmentFactory(owner=user)
+def base(project):
+    """URL prefix for the auth user's flags: /api/v1/projects/{key}/flags."""
+    return f"/api/v1/projects/{project.key}/flags"
+
+
+@pytest.fixture
+def env_base(project):
+    """URL prefix for the auth user's environments."""
+    return f"/api/v1/projects/{project.key}/environments"
+
+
+@pytest.fixture
+def flag(user, project, db):
+    return FeatureFlagFactory(project=project)
+
+
+@pytest.fixture
+def environment(user, project, db):
+    return EnvironmentFactory(project=project)
 
 
 @pytest.fixture
 def environment_flag(flag, environment, db):
-    """EnvironmentFlag that links the shared flag + environment (same owner)."""
+    """EnvironmentFlag that links the shared flag + environment (same project)."""
     return EnvironmentFlagFactory(feature_flag=flag, environment=environment)
 
 

@@ -12,7 +12,7 @@ from apps.environment.models import EnvironmentFlag
 
 class EvaluationQuery:
     @staticmethod
-    def get_active_env_flag(flag_key: str, owner_id: int, env_id: int) -> EnvironmentFlag:
+    def get_active_env_flag(flag_key: str, project_id: int, env_id: int) -> EnvironmentFlag:
         try:
             return (
                 EnvironmentFlag.objects
@@ -23,7 +23,7 @@ class EvaluationQuery:
                 .prefetch_related("feature_flag__rules__serve_variation")
                 .get(
                     feature_flag__key=flag_key,
-                    feature_flag__owner_id=owner_id,
+                    feature_flag__project_id=project_id,
                     feature_flag__is_archived=False,
                     environment_id=env_id,
                 )

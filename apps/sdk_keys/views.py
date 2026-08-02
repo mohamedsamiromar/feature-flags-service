@@ -29,7 +29,7 @@ class SDKKeyViewSet(
     serializer_class = SDKKeySerializer
 
     def get_queryset(self):
-        return SDKKeyQuery.list_for_owner(self.request.user)
+        return SDKKeyQuery.list_for_member(self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = SDKKeyCreateSerializer(data=request.data, context={"request": request})

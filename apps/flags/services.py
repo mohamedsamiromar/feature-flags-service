@@ -2,22 +2,45 @@ from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
 from apps.flags.models import FeatureFlag, FlagVersion
 from apps.flags.queries import FlagQuery, FlagVersionQuery, VariationQuery
+from apps.organizations.queries import ProjectQuery
+from apps.organizations.services import AccessService
 
 
 class FlagService:
     """Business logic for flags. Fetches through the query layer, applies rules,
     and persists through the query layer — no ORM access lives here.
 
-    Ownership is enforced by owner-scoped queries: a flag that is missing *or*
-    owned by another user surfaces as a 404, which is the API's existing contract.
+    Tenancy is enforced by project membership: a project the caller is not a
+    member of (or a flag in another project) surfaces as a 404. Mutations
+    additionally require a MEMBER+ role, enforced via ``AccessService``.
     """
 
-    def get_by_key(self, key: str, user) -> FeatureFlag:
-        return FlagQuery.get_owned(key, user)
+    # ------------------------------------------------------------------
+    # Access helpers
+    # ------------------------------------------------------------------
 
-    def create_flag(self, user, **kwargs) -> FeatureFlag:
+    @staticmethod
+    def _project(project_key: str, user, write: bool = False):
+        project = ProjectQuery.get_for_member(project_key, user)
+        if write:
+            AccessService.assert_can_write(user, project)
+        return project
+
+    def _flag(self, project_key: str, user, key: str, write: bool = False) -> FeatureFlag:
+        project = self._project(project_key, user, write=write)
+        return FlagQuery.get_in_project(key, project)
+
+    # ------------------------------------------------------------------
+    # Flag CRUD
+    # ------------------------------------------------------------------
+
+    def get_by_key(self, project_key: str, user, key: str) -> FeatureFlag:
+        return self._flag(project_key, user, key)
+
+    def create_flag(self, project_key: str, user, **kwargs) -> FeatureFlag:
+        project = self._project(project_key, user, write=True)
         flag_type = kwargs.get("flag_type", FeatureFlag.FlagType.BOOLEAN)
-        flag = FlagQuery.create(owner=user, **kwargs)
+        flag = FlagQuery.create(project=project, **kwargs)
 
         if flag_type == FeatureFlag.FlagType.BOOLEAN:
             self._create_boolean_variations(flag)
@@ -32,8 +55,8 @@ class FlagService:
         )
         return flag
 
-    def update_flag(self, key: str, user, **kwargs) -> FeatureFlag:
-        flag = FlagQuery.get_owned(key, user)
+    def update_flag(self, project_key: str, key: str, user, **kwargs) -> FeatureFlag:
+        flag = self._flag(project_key, user, key, write=True)
         self._assert_active(flag)
         self._assert_variations_belong(flag, kwargs)
         old_snapshot = AuditService.snapshot(flag)
@@ -53,16 +76,16 @@ class FlagService:
         )
         return flag
 
-    def delete_flag(self, key: str, user) -> None:
-        flag = FlagQuery.get_owned(key, user)
+    def delete_flag(self, project_key: str, key: str, user) -> None:
+        flag = self._flag(project_key, user, key, write=True)
         old_snapshot = AuditService.snapshot(flag)
         # Capture the cache coordinates before the delete cascades the
         # EnvironmentFlag rows away — afterwards there is no way to learn which
         # environments held a cached copy.
-        owner_id, flag_key = flag.owner_id, flag.key
+        project_id, flag_key = flag.project_id, flag.key
         env_ids = FlagQuery.env_ids_for(flag)
         FlagQuery.delete(flag)
-        self._invalidate_env_caches(owner_id, flag_key, env_ids)
+        self._invalidate_env_caches(project_id, flag_key, env_ids)
 
         flag.pk = old_snapshot["id"]
         AuditService.log(
@@ -73,8 +96,8 @@ class FlagService:
             new_value=None,
         )
 
-    def archive_flag(self, key: str, user) -> FeatureFlag:
-        flag = FlagQuery.get_owned(key, user)
+    def archive_flag(self, project_key: str, key: str, user) -> FeatureFlag:
+        flag = self._flag(project_key, user, key, write=True)
         if flag.is_archived:
             raise APIError(Error.ALREADY_IN_STATE, extra=["Flag", "archived"])
         old_snapshot = AuditService.snapshot(flag)
@@ -90,8 +113,8 @@ class FlagService:
         )
         return flag
 
-    def unarchive_flag(self, key: str, user) -> FeatureFlag:
-        flag = FlagQuery.get_owned(key, user)
+    def unarchive_flag(self, project_key: str, key: str, user) -> FeatureFlag:
+        flag = self._flag(project_key, user, key, write=True)
         if not flag.is_archived:
             raise APIError(Error.ALREADY_IN_STATE, extra=["Flag", "active"])
         old_snapshot = AuditService.snapshot(flag)
@@ -107,7 +130,7 @@ class FlagService:
         )
         return flag
 
-    def toggle_environment(self, key: str, user, env_name):
+    def toggle_environment(self, project_key: str, key: str, user, env_name):
         """Flip a flag's per-environment kill switch in one call.
 
         Creates the EnvironmentFlag on first toggle (off by default, so the
@@ -117,12 +140,13 @@ class FlagService:
         from apps.environment.queries import EnvironmentFlagQuery, EnvironmentQuery
         from apps.environment.services import EnvironmentFlagService
 
-        flag = FlagQuery.get_owned(key, user)
+        project = self._project(project_key, user, write=True)
+        flag = FlagQuery.get_in_project(key, project)
         self._assert_active(flag)
         if not env_name:
             raise APIError(Error.REQUIRED_FIELD)
 
-        env = EnvironmentQuery.get_owned_by_name(env_name, user)
+        env = EnvironmentQuery.get_in_project_by_name(env_name, project)
         env_flag = EnvironmentFlagQuery.get_or_create(flag, env)
         return EnvironmentFlagService().toggle(env_flag, user)
 
@@ -130,22 +154,22 @@ class FlagService:
     # Version history & rollback
     # ------------------------------------------------------------------
 
-    def list_versions(self, key: str, user):
-        flag = FlagQuery.get_owned(key, user)
+    def list_versions(self, project_key: str, key: str, user):
+        flag = self._flag(project_key, user, key)
         return FlagVersionQuery.list_for_flag(flag)
 
-    def get_version(self, key: str, user, version_no: int) -> FlagVersion:
-        flag = FlagQuery.get_owned(key, user)
+    def get_version(self, project_key: str, key: str, user, version_no: int) -> FlagVersion:
+        flag = self._flag(project_key, user, key)
         return FlagVersionQuery.get(flag, version_no)
 
-    def rollback(self, key: str, user, version_no: int) -> FeatureFlag:
+    def rollback(self, project_key: str, key: str, user, version_no: int) -> FeatureFlag:
         """Restore a flag's config to the snapshot in version `version_no`.
 
         Append-only: the live flag is mutated but a *new* version
         (``change_action=rollback``) is recorded, so history is never rewritten.
         Variation references that no longer exist are dropped to None.
         """
-        flag = FlagQuery.get_owned(key, user)
+        flag = self._flag(project_key, user, key, write=True)
         self._assert_active(flag)
 
         version = FlagVersionQuery.get(flag, version_no)
@@ -174,20 +198,20 @@ class FlagService:
     # Variation management
     # ------------------------------------------------------------------
 
-    def list_variations(self, key: str, user):
-        flag = FlagQuery.get_owned(key, user)
+    def list_variations(self, project_key: str, key: str, user):
+        flag = self._flag(project_key, user, key)
         return VariationQuery.list_for_flag(flag)
 
-    def create_variation(self, key: str, user, name: str, value_type: str, value):
-        flag = FlagQuery.get_owned(key, user)
+    def create_variation(self, project_key: str, key: str, user, name: str, value_type: str, value):
+        flag = self._flag(project_key, user, key, write=True)
         variation = VariationQuery.create(
             flag=flag, name=name, value_type=value_type, value=value
         )
         self.invalidate_flag_caches(flag)
         return variation
 
-    def update_variation(self, key: str, user, variation_id, **kwargs):
-        flag = FlagQuery.get_owned(key, user)
+    def update_variation(self, project_key: str, key: str, user, variation_id, **kwargs):
+        flag = self._flag(project_key, user, key, write=True)
         variation = VariationQuery.get_for_flag(flag, variation_id)
         for attr, value in kwargs.items():
             setattr(variation, attr, value)
@@ -195,8 +219,8 @@ class FlagService:
         self.invalidate_flag_caches(flag)
         return variation
 
-    def delete_variation(self, key: str, user, variation_id) -> None:
-        flag = FlagQuery.get_owned(key, user)
+    def delete_variation(self, project_key: str, key: str, user, variation_id) -> None:
+        flag = self._flag(project_key, user, key, write=True)
         variation = VariationQuery.get_for_flag(flag, variation_id)
         VariationQuery.delete(variation)
         self.invalidate_flag_caches(flag)
@@ -284,14 +308,14 @@ class FlagService:
         Public because rule mutations live outside this service but change the
         flag's cached targeting config.
         """
-        cls._invalidate_env_caches(flag.owner_id, flag.key, FlagQuery.env_ids_for(flag))
+        cls._invalidate_env_caches(flag.project_id, flag.key, FlagQuery.env_ids_for(flag))
 
     @staticmethod
-    def _invalidate_env_caches(owner_id: int, flag_key: str, env_ids) -> None:
+    def _invalidate_env_caches(project_id: int, flag_key: str, env_ids) -> None:
         from apps.evaluation.services import FlagEvaluationService
         for env_id in env_ids:
             FlagEvaluationService.invalidate_cache(
-                owner_id=owner_id,
+                project_id=project_id,
                 flag_key=flag_key,
                 env_id=env_id,
             )

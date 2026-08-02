@@ -42,14 +42,15 @@ class TestCreateSDKKey:
         assert resp.json()["key_type"] == "client"
         assert resp.json()["key"].startswith("sdk_cli_")
 
-    def test_create_wrong_environment_returns_400(self, auth_client):
-        other_env = EnvironmentFactory()  # different owner
+    def test_create_foreign_environment_returns_404(self, auth_client):
+        # An environment in a project the caller is not a member of is invisible.
+        other_env = EnvironmentFactory()  # different project
         resp = auth_client.post(
             f"{BASE}/",
             {"name": "Bad Key", "key_type": "server", "environment": other_env.id},
             format="json",
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 404
 
     def test_create_stores_hash_not_raw_key(self, auth_client, environment):
         resp = auth_client.post(

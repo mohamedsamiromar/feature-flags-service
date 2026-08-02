@@ -15,23 +15,23 @@ from apps.flags.models import FeatureFlag, FlagVersion, Variation
 
 class FlagQuery:
     @staticmethod
-    def get_owned(key: str, user) -> FeatureFlag:
-        """Owner-scoped fetch (any archived state). Missing or not-owned → 404."""
+    def get_in_project(key: str, project) -> FeatureFlag:
+        """Project-scoped fetch (any archived state). Missing → 404."""
         try:
-            return FeatureFlag.objects.get(key=key, owner=user)
+            return FeatureFlag.objects.get(key=key, project=project)
         except FeatureFlag.DoesNotExist:
             raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Flag"])
 
     @staticmethod
-    def list_for_owner(user, include_archived: bool = False):
-        qs = FeatureFlag.objects.filter(owner=user).prefetch_related("rules")
+    def list_for_project(project, include_archived: bool = False):
+        qs = FeatureFlag.objects.filter(project=project).prefetch_related("rules")
         if include_archived:
             return qs
         return qs.filter(is_archived=False)
 
     @staticmethod
-    def create(owner, **fields) -> FeatureFlag:
-        return FeatureFlag.objects.create(owner=owner, **fields)
+    def create(project, **fields) -> FeatureFlag:
+        return FeatureFlag.objects.create(project=project, **fields)
 
     @staticmethod
     def save(flag: FeatureFlag, update_fields=None) -> FeatureFlag:

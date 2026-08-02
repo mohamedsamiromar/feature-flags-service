@@ -8,7 +8,7 @@ logger = logging.getLogger("django")
 
 # Business error codes are negative and stable; the HTTP status is what clients
 # branch on, while `code` gives a precise, language-independent handle for a
-# specific failure. Keep codes unique. Last used code: -409.
+# specific failure. Keep codes unique. Last used code: -411.
 
 
 class Error(Enum):
@@ -61,6 +61,16 @@ class Error(Enum):
         "code": -308,
         "http_status": status.HTTP_400_BAD_REQUEST,
         "detail": _("Invalid pk — flag not found or not accessible."),
+    }
+    INSUFFICIENT_ROLE = {
+        "code": -410,
+        "http_status": status.HTTP_403_FORBIDDEN,
+        "detail": _("Your role does not permit this action."),
+    }
+    LAST_OWNER = {
+        "code": -411,
+        "http_status": status.HTTP_409_CONFLICT,
+        "detail": _("An organization must keep at least one owner."),
     }
 
 

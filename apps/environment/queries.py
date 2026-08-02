@@ -7,30 +7,41 @@ from apps.environment.models import Environment, EnvironmentFlag
 
 class EnvironmentQuery:
     @staticmethod
-    def get_owned(pk, user) -> Environment:
+    def get_in_project(pk, project) -> Environment:
         try:
-            return Environment.objects.get(pk=pk, owner=user)
+            return Environment.objects.get(pk=pk, project=project)
         except Environment.DoesNotExist:
             raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Environment"])
 
     @staticmethod
-    def get_owned_by_name(name: str, user) -> Environment:
+    def get_in_project_by_name(name: str, project) -> Environment:
         try:
-            return Environment.objects.get(owner=user, name=name)
+            return Environment.objects.get(project=project, name=name)
         except Environment.DoesNotExist:
             raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Environment"])
 
     @staticmethod
-    def list_for_owner(user):
-        return Environment.objects.filter(owner=user).order_by("name")
+    def get_for_member(pk, user) -> Environment:
+        """Fetch an environment the caller can see through project membership.
+
+        Used where an environment is referenced by id outside its nested route
+        (e.g. SDK-key creation). Not a member → 404."""
+        try:
+            return (
+                Environment.objects
+                .select_related("project")
+                .get(pk=pk, project__organization__memberships__user=user)
+            )
+        except Environment.DoesNotExist:
+            raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Environment"])
 
     @staticmethod
-    def exists_for_owner(pk, user) -> bool:
-        return Environment.objects.filter(pk=pk, owner=user).exists()
+    def list_for_project(project):
+        return Environment.objects.filter(project=project).order_by("name")
 
     @staticmethod
-    def create(owner, **fields) -> Environment:
-        return Environment.objects.create(owner=owner, **fields)
+    def create(project, **fields) -> Environment:
+        return Environment.objects.create(project=project, **fields)
 
     @staticmethod
     def delete(environment: Environment) -> None:

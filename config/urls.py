@@ -6,12 +6,13 @@ from apps.core.views import HealthCheckView
 
 api_patterns = [
     path("auth/",         include("apps.accounts.urls")),
-    path("flags/",        include("apps.flags.urls")),
+    path("",              include("apps.organizations.urls")),
+    path("projects/<slug:project_key>/flags/",        include("apps.flags.urls")),
+    path("projects/<slug:project_key>/environments/", include("apps.environment.urls")),
     path("rules/",        include("apps.rules.urls")),
     path("targeting/",    include("apps.targeting.urls")),
     path("evaluation/",   include("apps.evaluation.urls")),
     path("audit/",        include("apps.audit.urls")),
-    path("environments/", include("apps.environment.urls")),
     path("sdk-keys/",     include("apps.sdk_keys.urls")),
     path("sdk/",          include("apps.sdk.urls")),
 ]
