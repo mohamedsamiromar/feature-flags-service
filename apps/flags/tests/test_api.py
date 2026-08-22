@@ -162,3 +162,22 @@ class TestArchivedFlagEvaluation:
                 format="json",
             )
         assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestFlagKeyIsImmutable:
+    """PATCHing a flag's key used to collide with the service's lookup argument
+    and surface as a 500. It is now an explicit validation error."""
+
+    def test_changing_the_key_returns_400(self, base, auth_client, flag):
+        resp = auth_client.patch(f"{base}/{flag.key}/", {"key": "renamed"}, format="json")
+        assert resp.status_code == 400
+        flag.refresh_from_db()
+        assert flag.key != "renamed"
+
+    def test_resending_the_same_key_still_updates(self, base, auth_client, flag):
+        resp = auth_client.patch(
+            f"{base}/{flag.key}/", {"key": flag.key, "name": "Renamed"}, format="json"
+        )
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "Renamed"

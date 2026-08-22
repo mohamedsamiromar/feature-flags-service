@@ -46,7 +46,7 @@ class FeatureFlagViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         flag = _service.update_flag(
             project_key=self.project_key,
-            key=kwargs[self.lookup_field],
+            flag_key=kwargs[self.lookup_field],
             user=request.user,
             **serializer.validated_data,
         )

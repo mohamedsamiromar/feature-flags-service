@@ -55,9 +55,18 @@ class FlagService:
         )
         return flag
 
-    def update_flag(self, project_key: str, key: str, user, **kwargs) -> FeatureFlag:
-        flag = self._flag(project_key, user, key, write=True)
+    # The lookup arg is `flag_key`, not `key`: the view splats serializer data
+    # that contains a writable "key" field, and a collision there is a
+    # TypeError (a 500), not a validation error.
+    def update_flag(self, project_key: str, flag_key: str, user, **kwargs) -> FeatureFlag:
+        flag = self._flag(project_key, user, flag_key, write=True)
         self._assert_active(flag)
+        # A flag's key is its identity: SDK calls, cache keys, and every
+        # FlagVersion snapshot are addressed by it. Renaming would silently
+        # break live integrations, so it is fixed at creation.
+        new_key = kwargs.pop("key", None)
+        if new_key is not None and new_key != flag.key:
+            raise APIError(Error.IMMUTABLE_FIELD, extra=["key"])
         self._assert_variations_belong(flag, kwargs)
         old_snapshot = AuditService.snapshot(flag)
 
@@ -208,22 +217,49 @@ class FlagService:
             flag=flag, name=name, value_type=value_type, value=value
         )
         self.invalidate_flag_caches(flag)
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE,
+            entity=variation,
+            old_value=None,
+            new_value=AuditService.snapshot(variation),
+        )
         return variation
 
     def update_variation(self, project_key: str, key: str, user, variation_id, **kwargs):
         flag = self._flag(project_key, user, key, write=True)
         variation = VariationQuery.get_for_flag(flag, variation_id)
+        old_snapshot = AuditService.snapshot(variation)
         for attr, value in kwargs.items():
             setattr(variation, attr, value)
         VariationQuery.save(variation)
         self.invalidate_flag_caches(flag)
+        AuditService.log(
+            user=user,
+            action=AuditService.UPDATE,
+            entity=variation,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(variation),
+        )
         return variation
 
     def delete_variation(self, project_key: str, key: str, user, variation_id) -> None:
         flag = self._flag(project_key, user, key, write=True)
         variation = VariationQuery.get_for_flag(flag, variation_id)
+        old_snapshot = AuditService.snapshot(variation)
         VariationQuery.delete(variation)
         self.invalidate_flag_caches(flag)
+
+        # Django clears the pk on delete; restore it so the audit row keeps a
+        # usable entity_id (same pattern as delete_flag).
+        variation.pk = old_snapshot["id"]
+        AuditService.log(
+            user=user,
+            action=AuditService.DELETE,
+            entity=variation,
+            old_value=old_snapshot,
+            new_value=None,
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers (pure logic — no ORM)
