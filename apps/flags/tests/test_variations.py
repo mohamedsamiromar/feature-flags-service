@@ -9,6 +9,8 @@ import pytest
 from conftest import FeatureFlagFactory, VariationFactory, personal_project_for
 from apps.flags.models import FeatureFlag, Variation
 from apps.flags.services import FlagService
+from apps.audit.models import AuditLog
+from apps.audit.services import AuditService
 
 _service = FlagService()
 
@@ -171,3 +173,57 @@ class TestFlagTypeField:
         assert resp.status_code == 201
         flag = FeatureFlag.objects.get(key="toggle-x")
         assert flag.variations.count() == 2
+
+
+# ---------------------------------------------------------------------------
+# Audit trail
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestVariationAuditTrail:
+    """Variation writes must be audited like every other mutation."""
+
+    @staticmethod
+    def _logs(variation_id=None):
+        qs = AuditLog.objects.filter(entity_type="variation")
+        if variation_id is not None:
+            qs = qs.filter(entity_id=str(variation_id))
+        return qs
+
+    def test_create_variation_writes_audit_row(self, user, flag):
+        v = _service.create_variation(
+            project_key=flag.project.key, key=flag.key, user=user,
+            name="red", value_type="string", value="red",
+        )
+        log = self._logs(v.id).get(action=AuditService.CREATE)
+        assert log.user_id == user.id
+        assert log.old_value is None
+        assert log.new_value["name"] == "red"
+
+    def test_update_variation_records_before_and_after(self, user, flag):
+        v = VariationFactory(flag=flag, name="v1", value_type="string", value="old")
+        _service.update_variation(
+            project_key=flag.project.key, key=flag.key, user=user,
+            variation_id=v.id, value="new",
+        )
+        log = self._logs(v.id).get(action=AuditService.UPDATE)
+        assert log.old_value["value"] == "old"
+        assert log.new_value["value"] == "new"
+
+    def test_delete_variation_keeps_entity_id_and_snapshot(self, user, flag):
+        v = VariationFactory(flag=flag, name="doomed", value_type="string", value="x")
+        pk = v.pk
+        _service.delete_variation(
+            project_key=flag.project.key, key=flag.key, user=user, variation_id=v.id
+        )
+        # pk is cleared by Django on delete — the audit row must still point at it.
+        log = self._logs(pk).get(action=AuditService.DELETE)
+        assert log.old_value["name"] == "doomed"
+        assert log.new_value is None
+
+    def test_boolean_auto_variations_are_not_audited(self, user):
+        """Auto-wiring on flag create is part of the flag's own create audit row."""
+        _service.create_flag(
+            project_key=personal_project_for(user).key, user=user, name="F", key="audit-auto"
+        )
+        assert not self._logs().exists()

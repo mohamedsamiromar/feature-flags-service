@@ -123,3 +123,46 @@ class Variation(BaseModel):
 
     def __str__(self):
         return f"{self.flag.key}/{self.name}"
+
+
+class FlagTarget(BaseModel):
+    """An individual user pinned to a specific variation of a flag.
+
+    This is the "individual targeting" layer: it overrides targeting rules and
+    the percentage rollout for one named user, so a specific person can be let
+    into a feature early (target the `true`/fallthrough variation) or held out
+    of it (target the `false`/off variation) without touching anyone else.
+
+    `user_key` is the same identifier the SDK sends as `user_id` in its
+    evaluation context. A user may hold at most one target per flag, so the
+    override is always unambiguous.
+
+    Targets do not override the kill switch: a flag that is off in an
+    environment serves the off variation to everyone, targets included.
+    """
+
+    flag = models.ForeignKey(
+        FeatureFlag,
+        on_delete=models.CASCADE,
+        related_name="targets",
+    )
+    variation = models.ForeignKey(
+        Variation,
+        on_delete=models.CASCADE,
+        related_name="targets",
+    )
+    user_key = models.CharField(max_length=255)
+
+    class Meta:
+        constraints = [
+            # Doubles as the lookup index: the unique index on (flag, user_key)
+            # serves both the per-flag prefetch and the single-user lookup, so
+            # no extra Index/db_index is needed.
+            models.UniqueConstraint(
+                fields=["flag", "user_key"],
+                name="unique_target_per_flag_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.flag.key}:{self.user_key}→{self.variation.name}"

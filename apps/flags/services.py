@@ -1,7 +1,12 @@
 from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
 from apps.flags.models import FeatureFlag, FlagVersion
-from apps.flags.queries import FlagQuery, FlagVersionQuery, VariationQuery
+from apps.flags.queries import (
+    FlagQuery,
+    FlagTargetQuery,
+    FlagVersionQuery,
+    VariationQuery,
+)
 from apps.organizations.queries import ProjectQuery
 from apps.organizations.services import AccessService
 
@@ -55,9 +60,18 @@ class FlagService:
         )
         return flag
 
-    def update_flag(self, project_key: str, key: str, user, **kwargs) -> FeatureFlag:
-        flag = self._flag(project_key, user, key, write=True)
+    # The lookup arg is `flag_key`, not `key`: the view splats serializer data
+    # that contains a writable "key" field, and a collision there is a
+    # TypeError (a 500), not a validation error.
+    def update_flag(self, project_key: str, flag_key: str, user, **kwargs) -> FeatureFlag:
+        flag = self._flag(project_key, user, flag_key, write=True)
         self._assert_active(flag)
+        # A flag's key is its identity: SDK calls, cache keys, and every
+        # FlagVersion snapshot are addressed by it. Renaming would silently
+        # break live integrations, so it is fixed at creation.
+        new_key = kwargs.pop("key", None)
+        if new_key is not None and new_key != flag.key:
+            raise APIError(Error.IMMUTABLE_FIELD, extra=["key"])
         self._assert_variations_belong(flag, kwargs)
         old_snapshot = AuditService.snapshot(flag)
 
@@ -208,22 +222,102 @@ class FlagService:
             flag=flag, name=name, value_type=value_type, value=value
         )
         self.invalidate_flag_caches(flag)
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE,
+            entity=variation,
+            old_value=None,
+            new_value=AuditService.snapshot(variation),
+        )
         return variation
 
     def update_variation(self, project_key: str, key: str, user, variation_id, **kwargs):
         flag = self._flag(project_key, user, key, write=True)
         variation = VariationQuery.get_for_flag(flag, variation_id)
+        old_snapshot = AuditService.snapshot(variation)
         for attr, value in kwargs.items():
             setattr(variation, attr, value)
         VariationQuery.save(variation)
         self.invalidate_flag_caches(flag)
+        AuditService.log(
+            user=user,
+            action=AuditService.UPDATE,
+            entity=variation,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(variation),
+        )
         return variation
 
     def delete_variation(self, project_key: str, key: str, user, variation_id) -> None:
         flag = self._flag(project_key, user, key, write=True)
         variation = VariationQuery.get_for_flag(flag, variation_id)
+        old_snapshot = AuditService.snapshot(variation)
         VariationQuery.delete(variation)
         self.invalidate_flag_caches(flag)
+
+        # Django clears the pk on delete; restore it so the audit row keeps a
+        # usable entity_id (same pattern as delete_flag).
+        variation.pk = old_snapshot["id"]
+        AuditService.log(
+            user=user,
+            action=AuditService.DELETE,
+            entity=variation,
+            old_value=old_snapshot,
+            new_value=None,
+        )
+
+    # ------------------------------------------------------------------
+    # Individual user targeting
+    # ------------------------------------------------------------------
+
+    def list_targets(self, project_key: str, key: str, user):
+        flag = self._flag(project_key, user, key)
+        return FlagTargetQuery.list_for_flag(flag)
+
+    def set_target(self, project_key: str, key: str, user, user_key: str, variation_id):
+        """Pin one user to a variation, overriding rules and rollout for them.
+
+        Idempotent: re-targeting an already-targeted user moves them rather
+        than erroring, so a dashboard can PUT the desired state blindly.
+        """
+        flag = self._flag(project_key, user, key, write=True)
+        self._assert_active(flag)
+        variation = VariationQuery.get_for_flag(flag, variation_id)
+
+        existing = FlagTargetQuery.find(flag, user_key)
+        old_snapshot = AuditService.snapshot(existing) if existing else None
+
+        target, created = FlagTargetQuery.upsert(flag, user_key, variation)
+        self.invalidate_flag_caches(flag)
+
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE if created else AuditService.UPDATE,
+            entity=target,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(target),
+        )
+        return target, created
+
+    def remove_target(self, project_key: str, key: str, user, user_key: str) -> None:
+        flag = self._flag(project_key, user, key, write=True)
+        self._assert_active(flag)
+        target = FlagTargetQuery.get_for_flag(flag, user_key)
+
+        old_snapshot = AuditService.snapshot(target)
+        FlagTargetQuery.delete(target)
+        self.invalidate_flag_caches(flag)
+
+        # Django clears the pk on delete; restore it so the audit row keeps a
+        # usable entity_id (same pattern as delete_flag).
+        target.pk = old_snapshot["id"]
+        AuditService.log(
+            user=user,
+            action=AuditService.DELETE,
+            entity=target,
+            old_value=old_snapshot,
+            new_value=None,
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers (pure logic — no ORM)
@@ -300,6 +394,22 @@ class FlagService:
         flag.fallthrough_variation = true_var
         flag.off_variation = false_var
         FlagQuery.save(flag, update_fields=["fallthrough_variation", "off_variation"])
+
+    @classmethod
+    def invalidate_many_flag_caches(cls, flags) -> None:
+        """Evict cached copies of several flags using one env lookup total.
+
+        Used by segment mutations, which fan out over every flag whose rules
+        reference the edited segment.
+        """
+        flags = list(flags)
+        if not flags:
+            return
+        env_ids_by_flag = FlagQuery.env_ids_by_flag(flags)
+        for flag in flags:
+            cls._invalidate_env_caches(
+                flag.project_id, flag.key, env_ids_by_flag.get(flag.id, [])
+            )
 
     @classmethod
     def invalidate_flag_caches(cls, flag: FeatureFlag) -> None:

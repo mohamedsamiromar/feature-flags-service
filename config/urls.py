@@ -9,6 +9,7 @@ api_patterns = [
     path("",              include("apps.organizations.urls")),
     path("projects/<slug:project_key>/flags/",        include("apps.flags.urls")),
     path("projects/<slug:project_key>/environments/", include("apps.environment.urls")),
+    path("projects/<slug:project_key>/segments/",     include("apps.segments.urls")),
     path("rules/",        include("apps.rules.urls")),
     path("targeting/",    include("apps.targeting.urls")),
     path("evaluation/",   include("apps.evaluation.urls")),

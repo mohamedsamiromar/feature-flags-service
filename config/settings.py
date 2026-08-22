@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "apps.organizations",
     "apps.flags",
     "apps.rules",
+    "apps.segments",
     "apps.targeting",
     "apps.evaluation",
     "apps.audit",

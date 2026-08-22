@@ -229,3 +229,34 @@ def environment_flag(flag, environment, db):
 def sdk_key(environment, db):
     """Active server SDK key attached to the shared environment."""
     return SDKKeyFactory(environment=environment)
+
+
+@pytest.fixture(autouse=True)
+def _clear_flag_cache():
+    """Give every test an empty cache.
+
+    Tests run against a real Redis instance that outlives the test database.
+    Since the DB is recreated per session, primary keys restart and a cache key
+    (``flags:{project_id}:{env_id}:{flag_key}``) can collide with an entry left
+    behind by an earlier run — so a test asserting on a cache miss would read a
+    stale value from a previous session. Clearing before and after keeps each
+    test hermetic and stops one test's cache writes leaking into the next.
+    """
+    from django.core.cache import cache
+
+    _try_clear(cache)
+    yield
+    _try_clear(cache)
+
+
+def _try_clear(cache) -> None:
+    """Clear the cache, tolerating an unreachable Redis.
+
+    Tests that actually exercise caching still fail loudly on their own when
+    Redis is down. Swallowing the error here only keeps an autouse fixture from
+    turning every pure-logic test in the repo into a setup error too.
+    """
+    try:
+        cache.clear()
+    except Exception:  # noqa: BLE001 — any backend/connection error is non-fatal here
+        pass

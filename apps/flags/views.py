@@ -6,6 +6,7 @@ from apps.environment.serializers import EnvironmentFlagSerializer
 from apps.flags.queries import FlagQuery
 from apps.flags.serializers import (
     FeatureFlagSerializer,
+    FlagTargetSerializer,
     FlagVersionSerializer,
     VariationSerializer,
 )
@@ -46,7 +47,7 @@ class FeatureFlagViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         flag = _service.update_flag(
             project_key=self.project_key,
-            key=kwargs[self.lookup_field],
+            flag_key=kwargs[self.lookup_field],
             user=request.user,
             **serializer.validated_data,
         )
@@ -118,6 +119,46 @@ class FeatureFlagViewSet(viewsets.ModelViewSet):
             **serializer.validated_data,
         )
         return Response(VariationSerializer(updated).data)
+
+    # ------------------------------------------------------------------
+    # Individual user targeting
+    # ------------------------------------------------------------------
+
+    @action(detail=True, methods=["get", "put"], url_path="targets")
+    def targets(self, request, key=None, **kwargs):
+        """List individual targets, or pin one user to a variation.
+
+        PUT is idempotent: 201 the first time a user is targeted, 200 when an
+        existing target is moved to a different variation.
+        """
+        if request.method == "GET":
+            qs = _service.list_targets(project_key=self.project_key, key=key, user=request.user)
+            return Response(FlagTargetSerializer(qs, many=True).data)
+
+        serializer = FlagTargetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        target, created = _service.set_target(
+            project_key=self.project_key,
+            key=key,
+            user=request.user,
+            user_key=serializer.validated_data["user_key"],
+            variation_id=serializer.validated_data["variation"].id,
+        )
+        return Response(
+            FlagTargetSerializer(target).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"targets/(?P<user_key>[^/]+)",
+    )
+    def target_detail(self, request, key=None, user_key=None, **kwargs):
+        _service.remove_target(
+            project_key=self.project_key, key=key, user=request.user, user_key=user_key
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------
     # Version history & rollback

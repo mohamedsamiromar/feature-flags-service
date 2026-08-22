@@ -6,6 +6,8 @@ from django.conf import settings as django_settings
 from django.core.cache import cache
 
 from apps.evaluation.queries import EvaluationQuery
+from apps.rules.models import Operator
+from apps.segments.queries import SegmentQuery
 from apps.targeting.services import RuleEvaluator
 
 CACHE_TTL = getattr(django_settings, "FLAG_CACHE_TTL", 300)
@@ -30,8 +32,13 @@ class FlagEvaluationService:
         if not flag_data["is_enabled"]:
             return self._from_variation(flag_key, flag_data, flag_data["off_variation"])
 
+        targeted = flag_data.get("targets", {}).get(str(user_context.get("user_id", "")))
+        if targeted is not None:
+            return self._from_variation(flag_key, flag_data, targeted)
+
+        segments = flag_data.get("segments", {})
         for rule in flag_data["rules"]:
-            if self._rule_evaluator.matches(rule, user_context):
+            if self._rule_evaluator.matches(rule, user_context, segments):
                 serve = rule.get("serve_variation")
                 if serve:
                     return self._from_variation(flag_key, flag_data, serve, default=True)
@@ -72,12 +79,35 @@ class FlagEvaluationService:
                 "serve_variation": _variation_dict(rule.serve_variation),
             })
 
+        # user_key → variation, so the hot path is a dict lookup, not a scan.
+        targets = {
+            target.user_key: _variation_dict(target.variation)
+            for target in flag.targets.all()
+        }
+
+        # Only the segments this flag actually references are resolved, and only
+        # when the cache entry is built — the SDK hot path never queries them.
+        #
+        # NOTE: the payload contains Python `set` objects (see
+        # SegmentQuery.evaluation_payload). That is fine for the Redis cache,
+        # which pickles, but `flag_data` must NEVER be handed to a Celery task:
+        # CELERY_TASK_SERIALIZER is "json" and json.dumps raises on a set. Pass
+        # the evaluated *result* to tasks, never the flag config that produced
+        # it. TestEvaluationTaskArgsStayJsonSafe pins this.
+        segment_keys = [
+            rule["value"] for rule in rules
+            if rule["operator"] in Operator.segment_operators()
+        ]
+        segments = SegmentQuery.evaluation_payload(project_id, segment_keys)
+
         flag_data = {
             "id": flag.id,
             "flag_type": flag.flag_type,
             "is_enabled": env_flag.is_enabled,
             "rollout_percentage": env_flag.rollout_percentage,
             "rules": rules,
+            "targets": targets,
+            "segments": segments,
             "off_variation": _variation_dict(flag.off_variation),
             "fallthrough_variation": _variation_dict(flag.fallthrough_variation),
         }
