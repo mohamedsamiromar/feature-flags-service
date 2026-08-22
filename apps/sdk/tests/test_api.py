@@ -257,3 +257,63 @@ class TestSDKEvaluateIndividualTargeting:
         assert resp.status_code == 200
         assert resp.json()["result"] is False
 
+
+@pytest.mark.django_db
+class TestEvaluationTaskArgsStayJsonSafe:
+    """Everything handed to a Celery task must survive JSON serialization.
+
+    `CELERY_TASK_SERIALIZER` is "json", and the cached flag config contains
+    Python sets (segment include/exclude lists), which json.dumps cannot
+    encode. Today only the evaluated result is passed, so this holds — but
+    "send the evaluation data to a task" is exactly the shape of the batching
+    work on the roadmap, and the failure would surface in the async path where
+    it is easy to miss. This test fails the moment flag config leaks into a
+    task argument.
+    """
+
+    @pytest.fixture
+    def segment_targeted_flag(self, user, project, flag, environment, sdk_key):
+        from conftest import VariationFactory
+        from apps.rules.models import Operator, Rule
+        from apps.segments.services import SegmentService
+
+        segments = SegmentService()
+        segment = segments.create_segment(
+            project_key=project.key, user=user, key="beta", name="Beta"
+        )
+        segments.set_target(
+            project_key=project.key, key=segment.key, user=user,
+            user_key="alice", excluded=False,
+        )
+        on = VariationFactory(flag=flag, name="on", value_type="boolean", value=True)
+        off = VariationFactory(flag=flag, name="off", value_type="boolean", value=False)
+        flag.fallthrough_variation, flag.off_variation = on, off
+        flag.save(update_fields=["fallthrough_variation", "off_variation"])
+        EnvironmentFlagFactory(
+            feature_flag=flag, environment=environment,
+            is_enabled=True, rollout_percentage=0,
+        )
+        Rule.objects.create(
+            flag=flag, attribute="", operator=Operator.IN_SEGMENT,
+            value=segment.key, priority=1, serve_variation=on,
+        )
+        return flag, sdk_key
+
+    def test_task_kwargs_are_json_encodable(self, api_client, segment_targeted_flag):
+        import json
+
+        flag, sdk_key = segment_targeted_flag
+        with _patch_celery() as delay:
+            resp = api_client.post(
+                ENDPOINT,
+                {"flag_key": flag.key, "user_context": {"user_id": "alice"}},
+                format="json",
+                HTTP_X_SDK_KEY=sdk_key._full_key,
+            )
+        assert resp.status_code == 200
+        assert delay.called
+
+        # Raises TypeError if any argument carries a set (or anything else
+        # Celery's json serializer cannot encode).
+        json.dumps(delay.call_args.kwargs)
+        json.dumps(list(delay.call_args.args))

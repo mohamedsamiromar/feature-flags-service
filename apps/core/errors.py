@@ -72,10 +72,25 @@ class Error(Enum):
         "http_status": status.HTTP_409_CONFLICT,
         "detail": _("An organization must keep at least one owner."),
     }
+    SEGMENT_IN_USE = {
+        "code": -412,
+        "http_status": status.HTTP_409_CONFLICT,
+        "detail": _("This segment is referenced by a targeting rule. Remove those rules first."),
+    }
+    DUPLICATE_KEY = {
+        "code": -413,
+        "http_status": status.HTTP_409_CONFLICT,
+        "detail": _("A {} with key ({}) already exists in this project."),
+    }
     IMMUTABLE_FIELD = {
         "code": -415,
         "http_status": status.HTTP_400_BAD_REQUEST,
         "detail": _("({}) cannot be changed after creation."),
+    }
+    UNKNOWN_SEGMENT = {
+        "code": -414,
+        "http_status": status.HTTP_400_BAD_REQUEST,
+        "detail": _("No segment with key ({}) exists in this project."),
     }
 
 

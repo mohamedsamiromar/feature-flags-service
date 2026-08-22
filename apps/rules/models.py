@@ -11,11 +11,23 @@ class Operator(models.TextChoices):
     NOT_IN = "not_in", "Not In"
     GT = "gt", "Greater Than"
     LT = "lt", "Less Than"
+    # Segment operators ignore `attribute` entirely — `value` holds a segment
+    # key and membership is resolved by SegmentEvaluator, not by comparing a
+    # single context attribute.
+    IN_SEGMENT = "in_segment", "In Segment"
+    NOT_IN_SEGMENT = "not_in_segment", "Not In Segment"
+
+    @classmethod
+    def segment_operators(cls) -> set:
+        return {cls.IN_SEGMENT, cls.NOT_IN_SEGMENT}
 
 
 class Rule(BaseModel):
     flag = models.ForeignKey(FeatureFlag, on_delete=models.CASCADE, related_name="rules")
-    attribute = models.CharField(max_length=100)
+    # Blank for segment operators, which test membership rather than a single
+    # context attribute. Required for every other operator — enforced in
+    # RuleService, since the requirement depends on `operator`.
+    attribute = models.CharField(max_length=100, blank=True, default="")
     operator = models.CharField(max_length=50, choices=Operator.choices)
     value = models.CharField(max_length=255)
     priority = models.IntegerField(default=0)

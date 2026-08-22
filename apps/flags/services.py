@@ -396,6 +396,22 @@ class FlagService:
         FlagQuery.save(flag, update_fields=["fallthrough_variation", "off_variation"])
 
     @classmethod
+    def invalidate_many_flag_caches(cls, flags) -> None:
+        """Evict cached copies of several flags using one env lookup total.
+
+        Used by segment mutations, which fan out over every flag whose rules
+        reference the edited segment.
+        """
+        flags = list(flags)
+        if not flags:
+            return
+        env_ids_by_flag = FlagQuery.env_ids_by_flag(flags)
+        for flag in flags:
+            cls._invalidate_env_caches(
+                flag.project_id, flag.key, env_ids_by_flag.get(flag.id, [])
+            )
+
+    @classmethod
     def invalidate_flag_caches(cls, flag: FeatureFlag) -> None:
         """Evict every environment's cached copy of `flag`.
 

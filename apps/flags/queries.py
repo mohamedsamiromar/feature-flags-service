@@ -51,6 +51,25 @@ class FlagQuery:
             .values_list("environment_id", flat=True)
         )
 
+    @staticmethod
+    def env_ids_by_flag(flags) -> dict:
+        """``{flag_id: [env_id, ...]}`` for many flags in ONE query.
+
+        A segment edit invalidates every flag referencing it; doing that with
+        `env_ids_for` per flag is a query per flag.
+        """
+        from apps.environment.models import EnvironmentFlag
+
+        mapping = {}
+        rows = (
+            EnvironmentFlag.objects
+            .filter(feature_flag__in=flags)
+            .values_list("feature_flag_id", "environment_id")
+        )
+        for flag_id, env_id in rows:
+            mapping.setdefault(flag_id, []).append(env_id)
+        return mapping
+
 
 class VariationQuery:
     @staticmethod
