@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.flags.models import FeatureFlag, FlagVersion, Variation
+from apps.flags.models import FeatureFlag, FlagTarget, FlagVersion, Variation
 
 
 class FlagVersionSerializer(serializers.ModelSerializer):
@@ -23,6 +23,22 @@ class VariationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Variation
         fields = ["id", "name", "value_type", "value", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class FlagTargetSerializer(serializers.ModelSerializer):
+    """Read/write shape for an individual user target.
+
+    `variation` is a plain pk on write; the service checks it belongs to this
+    flag (cross-entity checks never live in a serializer). `variation_name` is
+    echoed back so a dashboard can render the target without a second call.
+    """
+
+    variation_name = serializers.CharField(source="variation.name", read_only=True)
+
+    class Meta:
+        model = FlagTarget
+        fields = ["id", "user_key", "variation", "variation_name", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]
 
 

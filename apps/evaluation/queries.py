@@ -20,7 +20,10 @@ class EvaluationQuery:
                     "feature_flag__off_variation",
                     "feature_flag__fallthrough_variation",
                 )
-                .prefetch_related("feature_flag__rules__serve_variation")
+                .prefetch_related(
+                    "feature_flag__rules__serve_variation",
+                    "feature_flag__targets__variation",
+                )
                 .get(
                     feature_flag__key=flag_key,
                     feature_flag__project_id=project_id,

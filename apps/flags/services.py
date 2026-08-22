@@ -1,7 +1,12 @@
 from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
 from apps.flags.models import FeatureFlag, FlagVersion
-from apps.flags.queries import FlagQuery, FlagVersionQuery, VariationQuery
+from apps.flags.queries import (
+    FlagQuery,
+    FlagTargetQuery,
+    FlagVersionQuery,
+    VariationQuery,
+)
 from apps.organizations.queries import ProjectQuery
 from apps.organizations.services import AccessService
 
@@ -257,6 +262,59 @@ class FlagService:
             user=user,
             action=AuditService.DELETE,
             entity=variation,
+            old_value=old_snapshot,
+            new_value=None,
+        )
+
+    # ------------------------------------------------------------------
+    # Individual user targeting
+    # ------------------------------------------------------------------
+
+    def list_targets(self, project_key: str, key: str, user):
+        flag = self._flag(project_key, user, key)
+        return FlagTargetQuery.list_for_flag(flag)
+
+    def set_target(self, project_key: str, key: str, user, user_key: str, variation_id):
+        """Pin one user to a variation, overriding rules and rollout for them.
+
+        Idempotent: re-targeting an already-targeted user moves them rather
+        than erroring, so a dashboard can PUT the desired state blindly.
+        """
+        flag = self._flag(project_key, user, key, write=True)
+        self._assert_active(flag)
+        variation = VariationQuery.get_for_flag(flag, variation_id)
+
+        existing = FlagTargetQuery.find(flag, user_key)
+        old_snapshot = AuditService.snapshot(existing) if existing else None
+
+        target, created = FlagTargetQuery.upsert(flag, user_key, variation)
+        self.invalidate_flag_caches(flag)
+
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE if created else AuditService.UPDATE,
+            entity=target,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(target),
+        )
+        return target, created
+
+    def remove_target(self, project_key: str, key: str, user, user_key: str) -> None:
+        flag = self._flag(project_key, user, key, write=True)
+        self._assert_active(flag)
+        target = FlagTargetQuery.get_for_flag(flag, user_key)
+
+        old_snapshot = AuditService.snapshot(target)
+        FlagTargetQuery.delete(target)
+        self.invalidate_flag_caches(flag)
+
+        # Django clears the pk on delete; restore it so the audit row keeps a
+        # usable entity_id (same pattern as delete_flag).
+        target.pk = old_snapshot["id"]
+        AuditService.log(
+            user=user,
+            action=AuditService.DELETE,
+            entity=target,
             old_value=old_snapshot,
             new_value=None,
         )

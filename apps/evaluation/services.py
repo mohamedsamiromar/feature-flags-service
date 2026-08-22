@@ -30,6 +30,10 @@ class FlagEvaluationService:
         if not flag_data["is_enabled"]:
             return self._from_variation(flag_key, flag_data, flag_data["off_variation"])
 
+        targeted = flag_data.get("targets", {}).get(str(user_context.get("user_id", "")))
+        if targeted is not None:
+            return self._from_variation(flag_key, flag_data, targeted)
+
         for rule in flag_data["rules"]:
             if self._rule_evaluator.matches(rule, user_context):
                 serve = rule.get("serve_variation")
@@ -72,12 +76,19 @@ class FlagEvaluationService:
                 "serve_variation": _variation_dict(rule.serve_variation),
             })
 
+        # user_key -> variation, so the hot path is a dict lookup, not a scan.
+        targets = {
+            target.user_key: _variation_dict(target.variation)
+            for target in flag.targets.all()
+        }
+
         flag_data = {
             "id": flag.id,
             "flag_type": flag.flag_type,
             "is_enabled": env_flag.is_enabled,
             "rollout_percentage": env_flag.rollout_percentage,
             "rules": rules,
+            "targets": targets,
             "off_variation": _variation_dict(flag.off_variation),
             "fallthrough_variation": _variation_dict(flag.fallthrough_variation),
         }

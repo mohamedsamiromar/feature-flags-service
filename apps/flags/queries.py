@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Max
 
 from apps.core.errors import APIError, Error
-from apps.flags.models import FeatureFlag, FlagVersion, Variation
+from apps.flags.models import FeatureFlag, FlagTarget, FlagVersion, Variation
 
 
 class FlagQuery:
@@ -119,3 +119,46 @@ class FlagVersionQuery:
                 source_version_no=source_version_no,
                 changed_by=changed_by,
             )
+
+
+class FlagTargetQuery:
+    """ORM access for individual user targets."""
+
+    @staticmethod
+    def list_for_flag(flag: FeatureFlag):
+        return FlagTarget.objects.filter(flag=flag).select_related("variation")
+
+    @staticmethod
+    def get_for_flag(flag: FeatureFlag, user_key: str) -> FlagTarget:
+        try:
+            return FlagTarget.objects.select_related("variation").get(
+                flag=flag, user_key=user_key
+            )
+        except FlagTarget.DoesNotExist:
+            raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Target"])
+
+    @staticmethod
+    def find(flag: FeatureFlag, user_key: str):
+        """Return the user's target, or None. Unlike `get_for_flag`, absence is
+        not an error — used when upserting, where "no target yet" is normal."""
+        return FlagTarget.objects.select_related("variation").filter(
+            flag=flag, user_key=user_key
+        ).first()
+
+    @staticmethod
+    def upsert(flag: FeatureFlag, user_key: str, variation: Variation):
+        """Pin `user_key` to `variation`, replacing any existing target.
+
+        Returns ``(target, created)``. Upsert rather than create so re-targeting
+        a user is a single idempotent call instead of delete-then-create.
+        """
+        target, created = FlagTarget.objects.update_or_create(
+            flag=flag,
+            user_key=user_key,
+            defaults={"variation": variation},
+        )
+        return target, created
+
+    @staticmethod
+    def delete(target: FlagTarget) -> None:
+        target.delete()

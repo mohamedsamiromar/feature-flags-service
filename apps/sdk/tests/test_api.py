@@ -208,3 +208,52 @@ class TestSDKEvaluateEdgeCases:
                 HTTP_X_SDK_KEY=sdk_key._full_key,
             )
         assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+class TestSDKEvaluateIndividualTargeting:
+    """Individual targets must reach the SDK through the real HTTP path,
+    keyed off the `user_id` the SDK sends in its evaluation context."""
+
+    @pytest.fixture
+    def targeted(self, flag, environment, sdk_key, user):
+        from apps.flags.services import FlagService
+        from conftest import VariationFactory
+
+        on = VariationFactory(flag=flag, name="on", value_type="boolean", value=True)
+        off = VariationFactory(flag=flag, name="off", value_type="boolean", value=False)
+        flag.fallthrough_variation, flag.off_variation = on, off
+        flag.save(update_fields=["fallthrough_variation", "off_variation"])
+
+        # On, but nobody is in the rollout — only a target can get through.
+        EnvironmentFlagFactory(
+            feature_flag=flag, environment=environment,
+            is_enabled=True, rollout_percentage=0,
+        )
+        FlagService().set_target(
+            project_key=flag.project.key, key=flag.key, user=user,
+            user_key="alice", variation_id=on.id,
+        )
+        return flag, sdk_key
+
+    def _evaluate(self, api_client, flag, sdk_key, user_id):
+        with _patch_celery():
+            return api_client.post(
+                ENDPOINT,
+                {"flag_key": flag.key, "user_context": {"user_id": user_id}},
+                format="json",
+                HTTP_X_SDK_KEY=sdk_key._full_key,
+            )
+
+    def test_targeted_user_receives_true(self, api_client, targeted):
+        flag, sdk_key = targeted
+        resp = self._evaluate(api_client, flag, sdk_key, "alice")
+        assert resp.status_code == 200
+        assert resp.json()["result"] is True
+
+    def test_untargeted_user_receives_false(self, api_client, targeted):
+        flag, sdk_key = targeted
+        resp = self._evaluate(api_client, flag, sdk_key, "bob")
+        assert resp.status_code == 200
+        assert resp.json()["result"] is False
+
