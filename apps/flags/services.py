@@ -2,6 +2,7 @@ from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
 from apps.flags.models import FeatureFlag, FlagVersion
 from apps.flags.queries import (
+    FlagPrerequisiteQuery,
     FlagQuery,
     FlagTargetQuery,
     FlagVersionQuery,
@@ -92,6 +93,7 @@ class FlagService:
 
     def delete_flag(self, project_key: str, key: str, user) -> None:
         flag = self._flag(project_key, user, key, write=True)
+        self._assert_not_a_prerequisite(flag)
         old_snapshot = AuditService.snapshot(flag)
         # Capture the cache coordinates before the delete cascades the
         # EnvironmentFlag rows away — afterwards there is no way to learn which
@@ -114,6 +116,9 @@ class FlagService:
         flag = self._flag(project_key, user, key, write=True)
         if flag.is_archived:
             raise APIError(Error.ALREADY_IN_STATE, extra=["Flag", "archived"])
+        # Archiving pulls the flag out of evaluation, so anything gated behind
+        # it would fail closed without warning.
+        self._assert_not_a_prerequisite(flag)
         old_snapshot = AuditService.snapshot(flag)
         flag.is_archived = True
         FlagQuery.save(flag, update_fields=["is_archived", "updated_at"])
@@ -318,6 +323,87 @@ class FlagService:
             old_value=old_snapshot,
             new_value=None,
         )
+
+    # ------------------------------------------------------------------
+    # Prerequisite flags
+    # ------------------------------------------------------------------
+
+    def list_prerequisites(self, project_key: str, key: str, user):
+        flag = self._flag(project_key, user, key)
+        return FlagPrerequisiteQuery.list_for_flag(flag)
+
+    def add_prerequisite(
+        self, project_key: str, key: str, user, prerequisite_key: str, variation_id
+    ):
+        """Gate `key` behind `prerequisite_key` serving a specific variation.
+
+        Rejects anything that would make the graph unusable: a flag gating
+        itself, a prerequisite outside this project, a variation that is not
+        the prerequisite's own, and any edge that would close a cycle.
+        """
+        flag = self._flag(project_key, user, key, write=True)
+        self._assert_active(flag)
+
+        if prerequisite_key == key:
+            raise APIError(Error.CIRCULAR_PREREQUISITE, extra=[key])
+
+        # Project-scoped lookup: a flag in another project is simply not found.
+        prerequisite_flag = FlagQuery.get_in_project(prerequisite_key, flag.project)
+        self._assert_active(prerequisite_flag)
+
+        # The required variation must belong to the PREREQUISITE, not to the
+        # flag being gated — that mix-up would otherwise create a gate that can
+        # never be satisfied.
+        variation = VariationQuery.get_for_flag(prerequisite_flag, variation_id)
+
+        # Adding flag -> prerequisite closes a cycle exactly when the
+        # prerequisite can already reach flag.
+        path = FlagPrerequisiteQuery.reaches(prerequisite_flag, flag.id)
+        if path:
+            raise APIError(
+                Error.CIRCULAR_PREREQUISITE, extra=[" -> ".join([flag.key] + path)]
+            )
+
+        obj, created = FlagPrerequisiteQuery.upsert(flag, prerequisite_flag, variation)
+        self.invalidate_flag_caches(flag)
+
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE if created else AuditService.UPDATE,
+            entity=obj,
+            old_value=None,
+            new_value=AuditService.snapshot(obj),
+        )
+        return obj, created
+
+    def remove_prerequisite(self, project_key: str, key: str, user, prerequisite_key: str) -> None:
+        flag = self._flag(project_key, user, key, write=True)
+        prerequisite = FlagPrerequisiteQuery.get_for_flag(flag, prerequisite_key)
+
+        old_snapshot = AuditService.snapshot(prerequisite)
+        FlagPrerequisiteQuery.delete(prerequisite)
+        self.invalidate_flag_caches(flag)
+
+        prerequisite.pk = old_snapshot["id"]
+        AuditService.log(
+            user=user,
+            action=AuditService.DELETE,
+            entity=prerequisite,
+            old_value=old_snapshot,
+            new_value=None,
+        )
+
+    @staticmethod
+    def _assert_not_a_prerequisite(flag: FeatureFlag) -> None:
+        """Refuse to remove a flag other flags are gated behind.
+
+        Letting it go would silently switch every dependent off (they fail
+        closed when a gate is unreachable), which is a surprising way to learn
+        about a dependency.
+        """
+        dependent = FlagPrerequisiteQuery.dependents_of(flag).first()
+        if dependent is not None:
+            raise APIError(Error.FLAG_IS_PREREQUISITE, extra=[dependent.key])
 
     # ------------------------------------------------------------------
     # Internal helpers (pure logic — no ORM)

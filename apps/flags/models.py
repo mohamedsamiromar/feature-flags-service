@@ -166,3 +166,54 @@ class FlagTarget(BaseModel):
 
     def __str__(self):
         return f"{self.flag.key}:{self.user_key}→{self.variation.name}"
+
+
+class FlagPrerequisite(BaseModel):
+    """A gate: `flag` only evaluates normally while `prerequisite_flag` is
+    serving `required_variation` for the same user.
+
+    This expresses dependency between features — "the new checkout flow is only
+    live for people who already have the new cart" — without duplicating the
+    cart's targeting rules onto the checkout flag.
+
+    If the prerequisite is off, unreachable, or serving any other variation,
+    the dependent flag serves its OFF variation. Prerequisites are checked
+    before individual targets, so an explicitly targeted user still does not
+    get a flag whose prerequisites are unmet.
+
+    Cycles are rejected at write time (see ``FlagService.add_prerequisite``);
+    evaluation additionally caps recursion depth as a runtime backstop.
+    """
+
+    flag = models.ForeignKey(
+        FeatureFlag,
+        on_delete=models.CASCADE,
+        related_name="prerequisites",
+    )
+    prerequisite_flag = models.ForeignKey(
+        FeatureFlag,
+        on_delete=models.CASCADE,
+        related_name="dependents",
+    )
+    required_variation = models.ForeignKey(
+        Variation,
+        on_delete=models.CASCADE,
+        related_name="required_by",
+    )
+
+    class Meta:
+        constraints = [
+            # One gate per (flag, prerequisite): two rows demanding different
+            # variations of the same prerequisite could never both be satisfied.
+            models.UniqueConstraint(
+                fields=["flag", "prerequisite_flag"],
+                name="unique_prerequisite_per_flag",
+            ),
+            models.CheckConstraint(
+                check=~models.Q(flag=models.F("prerequisite_flag")),
+                name="prerequisite_is_not_self",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.flag.key} requires {self.prerequisite_flag.key}={self.required_variation.name}"

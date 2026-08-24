@@ -6,6 +6,7 @@ from apps.environment.serializers import EnvironmentFlagSerializer
 from apps.flags.queries import FlagQuery
 from apps.flags.serializers import (
     FeatureFlagSerializer,
+    FlagPrerequisiteSerializer,
     FlagTargetSerializer,
     FlagVersionSerializer,
     VariationSerializer,
@@ -157,6 +158,50 @@ class FeatureFlagViewSet(viewsets.ModelViewSet):
     def target_detail(self, request, key=None, user_key=None, **kwargs):
         _service.remove_target(
             project_key=self.project_key, key=key, user=request.user, user_key=user_key
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # Prerequisite flags
+    # ------------------------------------------------------------------
+
+    @action(detail=True, methods=["get", "put"], url_path="prerequisites")
+    def prerequisites(self, request, key=None, **kwargs):
+        """List prerequisite gates, or add/update one.
+
+        PUT is idempotent: 201 the first time this flag is gated behind the
+        given prerequisite, 200 when changing which variation is required.
+        """
+        if request.method == "GET":
+            qs = _service.list_prerequisites(
+                project_key=self.project_key, key=key, user=request.user
+            )
+            return Response(FlagPrerequisiteSerializer(qs, many=True).data)
+
+        serializer = FlagPrerequisiteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        prerequisite, created = _service.add_prerequisite(
+            project_key=self.project_key,
+            key=key,
+            user=request.user,
+            prerequisite_key=data["prerequisite_flag"]["key"],
+            variation_id=data["required_variation_id"],
+        )
+        return Response(
+            FlagPrerequisiteSerializer(prerequisite).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"prerequisites/(?P<prerequisite_key>[^/]+)",
+    )
+    def prerequisite_detail(self, request, key=None, prerequisite_key=None, **kwargs):
+        _service.remove_prerequisite(
+            project_key=self.project_key, key=key, user=request.user,
+            prerequisite_key=prerequisite_key,
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
