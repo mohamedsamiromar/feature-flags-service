@@ -23,6 +23,7 @@ class EvaluationQuery:
                 .prefetch_related(
                     "feature_flag__rules__serve_variation",
                     "feature_flag__targets__variation",
+                    "feature_flag__prerequisites__prerequisite_flag",
                 )
                 .get(
                     feature_flag__key=flag_key,

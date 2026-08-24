@@ -10,7 +10,13 @@ from django.db import transaction
 from django.db.models import Max
 
 from apps.core.errors import APIError, Error
-from apps.flags.models import FeatureFlag, FlagTarget, FlagVersion, Variation
+from apps.flags.models import (
+    FeatureFlag,
+    FlagPrerequisite,
+    FlagTarget,
+    FlagVersion,
+    Variation,
+)
 
 
 class FlagQuery:
@@ -181,3 +187,75 @@ class FlagTargetQuery:
     @staticmethod
     def delete(target: FlagTarget) -> None:
         target.delete()
+
+
+class FlagPrerequisiteQuery:
+    """ORM access for prerequisite gates, including the graph walks that keep
+    the dependency graph acyclic."""
+
+    @staticmethod
+    def list_for_flag(flag: FeatureFlag):
+        return (
+            FlagPrerequisite.objects
+            .filter(flag=flag)
+            .select_related("prerequisite_flag", "required_variation")
+        )
+
+    @staticmethod
+    def get_for_flag(flag: FeatureFlag, prerequisite_key: str) -> FlagPrerequisite:
+        try:
+            return FlagPrerequisite.objects.select_related(
+                "prerequisite_flag", "required_variation"
+            ).get(flag=flag, prerequisite_flag__key=prerequisite_key)
+        except FlagPrerequisite.DoesNotExist:
+            raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Prerequisite"])
+
+    @staticmethod
+    def upsert(flag: FeatureFlag, prerequisite_flag: FeatureFlag, required_variation: Variation):
+        obj, created = FlagPrerequisite.objects.update_or_create(
+            flag=flag,
+            prerequisite_flag=prerequisite_flag,
+            defaults={"required_variation": required_variation},
+        )
+        return obj, created
+
+    @staticmethod
+    def delete(prerequisite: FlagPrerequisite) -> None:
+        prerequisite.delete()
+
+    @staticmethod
+    def dependents_of(flag: FeatureFlag):
+        """Flags that name `flag` as a prerequisite."""
+        return FeatureFlag.objects.filter(prerequisites__prerequisite_flag=flag).distinct()
+
+    @staticmethod
+    def reaches(start: FeatureFlag, target_id: int, max_depth: int = 25) -> list:
+        """Walk the prerequisite graph from `start`; return the path to
+        `target_id` if one exists, else [].
+
+        Used to reject a new edge that would close a cycle. Breadth-first with
+        a visited set, so an already-corrupted graph cannot hang the walk, and
+        a depth cap as a final backstop.
+        """
+        seen = {start.id}
+        queue = [(start, [start.key])]
+        depth = 0
+        while queue and depth < max_depth:
+            next_queue = []
+            for node, path in queue:
+                if node.id == target_id:
+                    return path
+                edges = (
+                    FlagPrerequisite.objects
+                    .filter(flag=node)
+                    .select_related("prerequisite_flag")
+                )
+                for edge in edges:
+                    nxt = edge.prerequisite_flag
+                    if nxt.id in seen:
+                        continue
+                    seen.add(nxt.id)
+                    next_queue.append((nxt, path + [nxt.key]))
+            queue = next_queue
+            depth += 1
+        return []

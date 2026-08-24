@@ -1,6 +1,12 @@
 from rest_framework import serializers
 
-from apps.flags.models import FeatureFlag, FlagTarget, FlagVersion, Variation
+from apps.flags.models import (
+    FeatureFlag,
+    FlagPrerequisite,
+    FlagTarget,
+    FlagVersion,
+    Variation,
+)
 
 
 class FlagVersionSerializer(serializers.ModelSerializer):
@@ -39,6 +45,26 @@ class FlagTargetSerializer(serializers.ModelSerializer):
     class Meta:
         model = FlagTarget
         fields = ["id", "user_key", "variation", "variation_name", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class FlagPrerequisiteSerializer(serializers.ModelSerializer):
+    """Read shape plus the two write fields.
+
+    Written by key + variation id rather than by pk, so a caller says "gate this
+    behind new-cart serving `on`" without first looking up internal ids. The
+    cross-entity checks (same project, variation belongs to the prerequisite, no
+    cycle) live in FlagService.
+    """
+
+    prerequisite_key = serializers.CharField(source="prerequisite_flag.key")
+    variation_id = serializers.IntegerField(source="required_variation_id")
+    variation_name = serializers.CharField(source="required_variation.name", read_only=True)
+
+    class Meta:
+        model = FlagPrerequisite
+        fields = ["id", "prerequisite_key", "variation_id", "variation_name",
+                  "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]
 
 

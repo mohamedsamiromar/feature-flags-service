@@ -8,7 +8,7 @@ logger = logging.getLogger("django")
 
 # Business error codes are negative and stable; the HTTP status is what clients
 # branch on, while `code` gives a precise, language-independent handle for a
-# specific failure. Keep codes unique. Last used code: -415.
+# specific failure. Keep codes unique. Last used code: -417.
 
 
 class Error(Enum):
@@ -86,6 +86,16 @@ class Error(Enum):
         "code": -415,
         "http_status": status.HTTP_400_BAD_REQUEST,
         "detail": _("({}) cannot be changed after creation."),
+    }
+    CIRCULAR_PREREQUISITE = {
+        "code": -416,
+        "http_status": status.HTTP_409_CONFLICT,
+        "detail": _("This would create a prerequisite cycle: ({})."),
+    }
+    FLAG_IS_PREREQUISITE = {
+        "code": -417,
+        "http_status": status.HTTP_409_CONFLICT,
+        "detail": _("This flag gates another flag ({}). Remove that prerequisite first."),
     }
     UNKNOWN_SEGMENT = {
         "code": -414,
