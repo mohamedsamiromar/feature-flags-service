@@ -39,6 +39,13 @@ class FlagEvaluationService:
         segments = flag_data.get("segments", {})
         for rule in flag_data["rules"]:
             if self._rule_evaluator.matches(rule, user_context, segments):
+                # A matching rule wins outright — evaluation never falls through
+                # to a later rule. Its own rollout decides whether this user is
+                # in the slice being served.
+                if not self._in_rule_rollout(rule, flag_key, user_context):
+                    return self._from_variation(
+                        flag_key, flag_data, flag_data["off_variation"], default=False
+                    )
                 serve = rule.get("serve_variation")
                 if serve:
                     return self._from_variation(flag_key, flag_data, serve, default=True)
@@ -72,10 +79,14 @@ class FlagEvaluationService:
         rules = []
         for rule in flag.rules.order_by("priority"):
             rules.append({
+                # `id` salts the per-rule bucketing so two rules at the same
+                # percentage do not select the same slice of users.
+                "id": rule.id,
                 "attribute": rule.attribute,
                 "operator": rule.operator,
                 "value": rule.value,
                 "priority": rule.priority,
+                "rollout_percentage": rule.rollout_percentage,
                 "serve_variation": _variation_dict(rule.serve_variation),
             })
 
@@ -138,13 +149,42 @@ class FlagEvaluationService:
     def invalidate_cache(project_id: int, flag_key: str, env_id: int) -> None:
         cache.delete(f"flags:{project_id}:{env_id}:{flag_key}")
 
+    @classmethod
+    def _in_rule_rollout(cls, rule: dict, flag_key: str, user_context: dict) -> bool:
+        """Whether this user falls inside a matched rule's own rollout slice.
+
+        Defaults to 100 for entries written before rules had a rollout — a
+        cached payload outlives a deploy by up to the TTL, and a missing key
+        must mean "applies to everyone", never "applies to no one".
+
+        Salted with the rule id so two rules at the same percentage target
+        different slices instead of the same users.
+        """
+        percentage = rule.get("rollout_percentage", 100)
+        if percentage >= 100:
+            return True
+        return cls._apply_rollout(
+            flag_key,
+            str(user_context.get("user_id", "")),
+            percentage,
+            salt=f"rule:{rule.get('id', '')}:",
+        )
+
     @staticmethod
-    def _apply_rollout(flag_key: str, user_id: str, rollout_percentage: int) -> bool:
+    def _apply_rollout(
+        flag_key: str, user_id: str, rollout_percentage: int, salt: str = ""
+    ) -> bool:
+        """Deterministically bucket a user into `rollout_percentage`.
+
+        `salt` MUST default to "" and stay empty for the flag-level rollout:
+        the hash decides which users already have a flag, so changing its
+        inputs would re-bucket everyone and flip live flags on deploy.
+        """
         if rollout_percentage <= 0:
             return False
         if rollout_percentage >= 100:
             return True
         hash_int = int(
-            hashlib.sha256(f"{flag_key}{user_id}".encode()).hexdigest(), 16
+            hashlib.sha256(f"{salt}{flag_key}{user_id}".encode()).hexdigest(), 16
         )
         return (hash_int % 100) < rollout_percentage

@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from apps.core.models import BaseModel
 from apps.flags.models import FeatureFlag
@@ -31,6 +32,15 @@ class Rule(BaseModel):
     operator = models.CharField(max_length=50, choices=Operator.choices)
     value = models.CharField(max_length=255)
     priority = models.IntegerField(default=0)
+    # Share of the users this rule MATCHES that actually get `serve_variation`.
+    # Defaults to 100 so an existing rule keeps applying to everyone it matches;
+    # lowering it rolls a targeted group out gradually ("20% of beta testers").
+    # Matched-but-not-in-bucket users get the flag's off variation - the rule
+    # still wins, so evaluation does not fall through to a later rule.
+    rollout_percentage = models.IntegerField(
+        default=100,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
     serve_variation = models.ForeignKey(
         "flags.Variation",
         null=True, blank=True,
@@ -42,6 +52,14 @@ class Rule(BaseModel):
         ordering = ["priority"]
         indexes = [
             models.Index(fields=["flag", "priority"], name="rules_rule_flag_priority_idx"),
+        ]
+        constraints = [
+            # Third layer, matching FeatureFlag.rollout_percentage: serializer,
+            # model validator, and a DB constraint the ORM cannot bypass.
+            models.CheckConstraint(
+                check=models.Q(rollout_percentage__gte=0) & models.Q(rollout_percentage__lte=100),
+                name="rules_rule_rollout_percentage_0_100",
+            ),
         ]
 
     def __str__(self):
