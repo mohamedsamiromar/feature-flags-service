@@ -4,10 +4,11 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url", "value": "http://localhost:8000/api/v1" },
-    { "key": "access_token", "value": "" },
-    { "key": "refresh_token", "value": "" },
-    { "key": "sdk_key", "value": "" }
+    {"key": "base_url", "value": "http://localhost:8000/api/v1"},
+    {"key": "project_key", "value": "default"},
+    {"key": "access_token", "value": ""},
+    {"key": "refresh_token", "value": ""},
+    {"key": "sdk_key", "value": ""}
   ],
   "item": [
     {
@@ -17,21 +18,24 @@
           "name": "Health Check",
           "request": {
             "method": "GET",
-            "url": { "raw": "http://localhost:8000/healthz/", "host": ["http://localhost:8000/healthz/"] },
-            "auth": { "type": "noauth" }
+            "url": {"raw": "http://localhost:8000/healthz/", "host": ["http://localhost:8000/healthz/"]},
+            "auth": {"type": "noauth"}
           },
           "response": [
             {
               "name": "200 OK — Server is healthy",
               "originalRequest": {
                 "method": "GET",
-                "url": { "raw": "http://localhost:8000/healthz/", "host": ["http://localhost:8000/healthz/"] },
-                "auth": { "type": "noauth" }
+                "url": {
+                  "raw": "http://localhost:8000/healthz/",
+                  "host": ["http://localhost:8000/healthz/"]
+                },
+                "auth": {"type": "noauth"}
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"status\": \"ok\"\n}"
             }
@@ -60,13 +64,17 @@
           ],
           "request": {
             "method": "POST",
-            "auth": { "type": "noauth" },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/auth/token/", "host": ["{{base_url}}"], "path": ["auth", "token", ""] },
+            "auth": {"type": "noauth"},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/auth/token/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "token", ""]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"your_username\",\n  \"password\": \"your_password\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             }
           },
           "response": [
@@ -74,19 +82,23 @@
               "name": "200 OK — Tokens issued",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/auth/token/", "host": ["{{base_url}}"], "path": ["auth", "token", ""] },
+                "auth": {"type": "noauth"},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/auth/token/",
+                  "host": ["{{base_url}}"],
+                  "path": ["auth", "token", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"username\": \"your_username\",\n  \"password\": \"your_password\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"access\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NTAwMDAwMDB9.abc123def456\",\n  \"refresh\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NTI1MDAwMDB9.xyz789uvw012\"\n}"
             },
@@ -94,19 +106,23 @@
               "name": "401 Unauthorized — Invalid credentials",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/auth/token/", "host": ["{{base_url}}"], "path": ["auth", "token", ""] },
+                "auth": {"type": "noauth"},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/auth/token/",
+                  "host": ["{{base_url}}"],
+                  "path": ["auth", "token", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"username\": \"wrong_user\",\n  \"password\": \"wrong_pass\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Unauthorized",
               "code": 401,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"No active account found with the given credentials\"\n}"
             }
@@ -128,13 +144,17 @@
           ],
           "request": {
             "method": "POST",
-            "auth": { "type": "noauth" },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/auth/token/refresh/", "host": ["{{base_url}}"], "path": ["auth", "token", "refresh", ""] },
+            "auth": {"type": "noauth"},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/auth/token/refresh/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "token", "refresh", ""]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             }
           },
           "response": [
@@ -142,19 +162,23 @@
               "name": "200 OK — New access token",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/auth/token/refresh/", "host": ["{{base_url}}"], "path": ["auth", "token", "refresh", ""] },
+                "auth": {"type": "noauth"},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/auth/token/refresh/",
+                  "host": ["{{base_url}}"],
+                  "path": ["auth", "token", "refresh", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"refresh\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxfQ.refresh_token_here\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"access\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NTAwMDAwMDB9.new_access_token\"\n}"
             },
@@ -162,23 +186,217 @@
               "name": "401 Unauthorized — Invalid or expired refresh token",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/auth/token/refresh/", "host": ["{{base_url}}"], "path": ["auth", "token", "refresh", ""] },
+                "auth": {"type": "noauth"},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/auth/token/refresh/",
+                  "host": ["{{base_url}}"],
+                  "path": ["auth", "token", "refresh", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"refresh\": \"expired_or_invalid_token\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Unauthorized",
               "code": 401,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Token is invalid or expired\",\n  \"code\": \"token_not_valid\"\n}"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Organizations & Projects",
+      "item": [
+        {
+          "name": "List Organizations",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Organization",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ""]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Inc\",\n  \"slug\": \"acme\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "The creator becomes the organization's owner."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organization",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", ""],
+              "variable": [{"key": "slug", "value": "acme"}]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Organization",
+          "request": {
+            "method": "DELETE",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", ""],
+              "variable": [{"key": "slug", "value": "acme"}]
+            },
+            "description": "Owner only. Cascades to projects and flags."
+          },
+          "response": []
+        },
+        {
+          "name": "List Members",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/members/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", "members", ""],
+              "variable": [{"key": "slug", "value": "acme"}]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Member",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/members/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", "members", ""],
+              "variable": [{"key": "slug", "value": "acme"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 2,\n  \"role\": \"member\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Admin or above. Roles: viewer, member, admin, owner."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Member Role",
+          "request": {
+            "method": "PATCH",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/members/:user_id/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", "members", ":user_id", ""],
+              "variable": [{"key": "slug", "value": "acme"}, {"key": "user_id", "value": "2"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Admin or above. Demoting the last owner returns 409."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Member",
+          "request": {
+            "method": "DELETE",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/members/:user_id/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", "members", ":user_id", ""],
+              "variable": [{"key": "slug", "value": "acme"}, {"key": "user_id", "value": "2"}]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {"raw": "{{base_url}}/projects/", "host": ["{{base_url}}"], "path": ["projects", ""]}
+          },
+          "response": []
+        },
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {"raw": "{{base_url}}/projects/", "host": ["{{base_url}}"], "path": ["projects", ""]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"acme\",\n  \"name\": \"Web App\",\n  \"key\": \"web\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Admin or above. `slug` names the organization; `key` is globally unique."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Project",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", ":key", ""],
+              "variable": [{"key": "key", "value": "web"}]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "method": "DELETE",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", ":key", ""],
+              "variable": [{"key": "key", "value": "web"}]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -189,12 +407,12 @@
           "name": "List Flags",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
             "url": {
-              "raw": "{{base_url}}/flags/",
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/",
               "host": ["{{base_url}}"],
-              "path": ["flags", ""],
-              "query": [{ "key": "include_archived", "value": "true", "disabled": true }]
+              "path": ["projects", "{{project_key}}", "flags", ""],
+              "query": [{"key": "include_archived", "value": "true", "disabled": true}]
             }
           },
           "response": [
@@ -202,17 +420,17 @@
               "name": "200 OK — List of flags",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
                 "url": {
-                  "raw": "{{base_url}}/flags/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/",
                   "host": ["{{base_url}}"],
-                  "path": ["flags", ""]
+                  "path": ["projects", "{{project_key}}", "flags", ""]
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"Dark Mode\",\n    \"key\": \"dark-mode\",\n    \"description\": \"Enable dark mode for users\",\n    \"flag_type\": \"boolean\",\n    \"is_enabled\": false,\n    \"rollout_percentage\": 0,\n    \"off_variation\": 2,\n    \"fallthrough_variation\": 1,\n    \"is_archived\": false,\n    \"variations\": [\n      {\n        \"id\": 1,\n        \"name\": \"true\",\n        \"value_type\": \"boolean\",\n        \"value\": true,\n        \"created_at\": \"2026-06-14T10:00:01Z\",\n        \"updated_at\": \"2026-06-14T10:00:01Z\"\n      },\n      {\n        \"id\": 2,\n        \"name\": \"false\",\n        \"value_type\": \"boolean\",\n        \"value\": false,\n        \"created_at\": \"2026-06-14T10:00:01Z\",\n        \"updated_at\": \"2026-06-14T10:00:01Z\"\n      }\n    ],\n    \"created_at\": \"2026-06-14T10:00:00Z\",\n    \"updated_at\": \"2026-06-14T10:00:01Z\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"Button Theme\",\n    \"key\": \"button-theme\",\n    \"description\": \"Controls the button color variant\",\n    \"flag_type\": \"multivariate\",\n    \"is_enabled\": false,\n    \"rollout_percentage\": 0,\n    \"off_variation\": null,\n    \"fallthrough_variation\": null,\n    \"is_archived\": false,\n    \"variations\": [],\n    \"created_at\": \"2026-06-14T10:05:00Z\",\n    \"updated_at\": \"2026-06-14T10:05:00Z\"\n  }\n]"
             },
@@ -220,13 +438,17 @@
               "name": "401 Unauthorized — Missing or invalid token",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "noauth" },
-                "url": { "raw": "{{base_url}}/flags/", "host": ["{{base_url}}"], "path": ["flags", ""] }
+                "auth": {"type": "noauth"},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ""]
+                }
               },
               "status": "Unauthorized",
               "code": 401,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Authentication credentials were not provided.\"\n}"
             }
@@ -236,13 +458,17 @@
           "name": "Create Flag (Boolean)",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/flags/", "host": ["{{base_url}}"], "path": ["flags", ""] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ""]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"flag_type\": \"boolean\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "flag_type choices: boolean (default), multivariate. Boolean flags automatically get true/false variations."
           },
@@ -251,19 +477,23 @@
               "name": "201 Created — Boolean flag with auto-created variations",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/flags/", "host": ["{{base_url}}"], "path": ["flags", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"flag_type\": \"boolean\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"flag_type\": \"boolean\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"off_variation\": 2,\n  \"fallthrough_variation\": 1,\n  \"is_archived\": false,\n  \"variations\": [\n    {\n      \"id\": 1,\n      \"name\": \"true\",\n      \"value_type\": \"boolean\",\n      \"value\": true,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"false\",\n      \"value_type\": \"boolean\",\n      \"value\": false,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    }\n  ],\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T10:00:01Z\"\n}"
             },
@@ -271,19 +501,23 @@
               "name": "400 Bad Request — Key already exists",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/flags/", "host": ["{{base_url}}"], "path": ["flags", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"flag_type\": \"boolean\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"key\": [\n    \"feature flag with this key already exists.\"\n  ]\n}"
             }
@@ -293,13 +527,17 @@
           "name": "Create Flag (Multivariate)",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/flags/", "host": ["{{base_url}}"], "path": ["flags", ""] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ""]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Button Theme\",\n  \"key\": \"button-theme\",\n  \"description\": \"Controls the button color variant\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"flag_type\": \"multivariate\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "Multivariate flags start with no variations. Add variations via POST /flags/{key}/variations/ then set off_variation and fallthrough_variation via PATCH."
           },
@@ -308,19 +546,23 @@
               "name": "201 Created — Multivariate flag (no variations yet)",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/flags/", "host": ["{{base_url}}"], "path": ["flags", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Button Theme\",\n  \"key\": \"button-theme\",\n  \"description\": \"Controls the button color variant\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"flag_type\": \"multivariate\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 2,\n  \"name\": \"Button Theme\",\n  \"key\": \"button-theme\",\n  \"description\": \"Controls the button color variant\",\n  \"flag_type\": \"multivariate\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"off_variation\": null,\n  \"fallthrough_variation\": null,\n  \"is_archived\": false,\n  \"variations\": [],\n  \"created_at\": \"2026-06-14T10:05:00Z\",\n  \"updated_at\": \"2026-06-14T10:05:00Z\"\n}"
             }
@@ -330,21 +572,30 @@
           "name": "Get Flag",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ":key", ""],
+              "variable": [{"key": "key", "value": "dark-mode"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Flag detail",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"flag_type\": \"boolean\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"off_variation\": 2,\n  \"fallthrough_variation\": 1,\n  \"is_archived\": false,\n  \"variations\": [\n    {\n      \"id\": 1,\n      \"name\": \"true\",\n      \"value_type\": \"boolean\",\n      \"value\": true,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"false\",\n      \"value_type\": \"boolean\",\n      \"value\": false,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    }\n  ],\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T10:00:01Z\"\n}"
             },
@@ -352,13 +603,17 @@
               "name": "404 Not Found — Flag does not exist",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/flags/non-existent/", "host": ["{{base_url}}"], "path": ["flags", "non-existent", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/non-existent/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "non-existent", ""]
+                }
               },
               "status": "Not Found",
               "code": 404,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Not found.\"\n}"
             }
@@ -368,13 +623,18 @@
           "name": "Update Flag (PATCH)",
           "request": {
             "method": "PATCH",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "dark-mode" }] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ":key", ""],
+              "variable": [{"key": "key", "value": "dark-mode"}]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"is_enabled\": true,\n  \"rollout_percentage\": 50\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "Returns 409 if the flag is archived. Use off_variation and fallthrough_variation (integer IDs) to wire up multivariate flags."
           },
@@ -383,19 +643,23 @@
               "name": "200 OK — Flag updated",
               "originalRequest": {
                 "method": "PATCH",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/flags/dark-mode/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"is_enabled\": true,\n  \"rollout_percentage\": 50\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"flag_type\": \"boolean\",\n  \"is_enabled\": true,\n  \"rollout_percentage\": 50,\n  \"off_variation\": 2,\n  \"fallthrough_variation\": 1,\n  \"is_archived\": false,\n  \"variations\": [\n    {\n      \"id\": 1,\n      \"name\": \"true\",\n      \"value_type\": \"boolean\",\n      \"value\": true,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"false\",\n      \"value_type\": \"boolean\",\n      \"value\": false,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    }\n  ],\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T10:20:00Z\"\n}"
             },
@@ -403,19 +667,23 @@
               "name": "409 Conflict — Flag is archived",
               "originalRequest": {
                 "method": "PATCH",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/flags/dark-mode/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"is_enabled\": true\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Conflict",
               "code": 409,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Flag is archived and cannot be modified.\"\n}"
             }
@@ -425,13 +693,18 @@
           "name": "Set Multivariate Variations (PATCH)",
           "request": {
             "method": "PATCH",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "button-theme" }] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ":key", ""],
+              "variable": [{"key": "key", "value": "button-theme"}]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"off_variation\": 4,\n  \"fallthrough_variation\": 3\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "Wire up off_variation (served when disabled) and fallthrough_variation (served when in rollout bucket) using variation IDs from POST /flags/{key}/variations/."
           },
@@ -440,19 +713,23 @@
               "name": "200 OK — Variations wired up",
               "originalRequest": {
                 "method": "PATCH",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/flags/button-theme/", "host": ["{{base_url}}"], "path": ["flags", "button-theme", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/button-theme/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "button-theme", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"off_variation\": 4,\n  \"fallthrough_variation\": 3\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 2,\n  \"name\": \"Button Theme\",\n  \"key\": \"button-theme\",\n  \"description\": \"Controls the button color variant\",\n  \"flag_type\": \"multivariate\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"off_variation\": 4,\n  \"fallthrough_variation\": 3,\n  \"is_archived\": false,\n  \"variations\": [\n    {\n      \"id\": 3,\n      \"name\": \"red\",\n      \"value_type\": \"string\",\n      \"value\": \"#ff0000\",\n      \"created_at\": \"2026-06-14T10:10:00Z\",\n      \"updated_at\": \"2026-06-14T10:10:00Z\"\n    },\n    {\n      \"id\": 4,\n      \"name\": \"blue\",\n      \"value_type\": \"string\",\n      \"value\": \"#0000ff\",\n      \"created_at\": \"2026-06-14T10:11:00Z\",\n      \"updated_at\": \"2026-06-14T10:11:00Z\"\n    }\n  ],\n  \"created_at\": \"2026-06-14T10:05:00Z\",\n  \"updated_at\": \"2026-06-14T10:25:00Z\"\n}"
             }
@@ -462,16 +739,25 @@
           "name": "Delete Flag",
           "request": {
             "method": "DELETE",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/flags/:key/", "host": ["{{base_url}}"], "path": ["flags", ":key", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ":key", ""],
+              "variable": [{"key": "key", "value": "dark-mode"}]
+            }
           },
           "response": [
             {
               "name": "204 No Content — Flag deleted",
               "originalRequest": {
                 "method": "DELETE",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", ""]
+                }
               },
               "status": "No Content",
               "code": 204,
@@ -486,21 +772,30 @@
           "name": "Archive Flag",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/flags/:key/archive/", "host": ["{{base_url}}"], "path": ["flags", ":key", "archive", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/archive/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ":key", "archive", ""],
+              "variable": [{"key": "key", "value": "dark-mode"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Flag archived",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/archive/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "archive", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/archive/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", "archive", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"flag_type\": \"boolean\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"off_variation\": 2,\n  \"fallthrough_variation\": 1,\n  \"is_archived\": true,\n  \"variations\": [\n    {\n      \"id\": 1,\n      \"name\": \"true\",\n      \"value_type\": \"boolean\",\n      \"value\": true,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"false\",\n      \"value_type\": \"boolean\",\n      \"value\": false,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    }\n  ],\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T10:30:00Z\"\n}"
             },
@@ -508,13 +803,17 @@
               "name": "409 Conflict — Flag already archived",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/archive/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "archive", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/archive/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", "archive", ""]
+                }
               },
               "status": "Conflict",
               "code": 409,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Flag is already archived.\"\n}"
             }
@@ -524,21 +823,30 @@
           "name": "Unarchive Flag",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/flags/:key/unarchive/", "host": ["{{base_url}}"], "path": ["flags", ":key", "unarchive", ""], "variable": [{ "key": "key", "value": "dark-mode" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/unarchive/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ":key", "unarchive", ""],
+              "variable": [{"key": "key", "value": "dark-mode"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Flag unarchived",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/unarchive/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "unarchive", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/unarchive/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", "unarchive", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"Dark Mode\",\n  \"key\": \"dark-mode\",\n  \"description\": \"Enable dark mode for users\",\n  \"flag_type\": \"boolean\",\n  \"is_enabled\": false,\n  \"rollout_percentage\": 0,\n  \"off_variation\": 2,\n  \"fallthrough_variation\": 1,\n  \"is_archived\": false,\n  \"variations\": [\n    {\n      \"id\": 1,\n      \"name\": \"true\",\n      \"value_type\": \"boolean\",\n      \"value\": true,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"false\",\n      \"value_type\": \"boolean\",\n      \"value\": false,\n      \"created_at\": \"2026-06-14T10:00:01Z\",\n      \"updated_at\": \"2026-06-14T10:00:01Z\"\n    }\n  ],\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T10:35:00Z\"\n}"
             },
@@ -546,13 +854,17 @@
               "name": "409 Conflict — Flag is not archived",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/unarchive/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "unarchive", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/unarchive/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", "unarchive", ""]
+                }
               },
               "status": "Conflict",
               "code": 409,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Flag is not archived.\"\n}"
             }
@@ -562,10 +874,19 @@
           "name": "Toggle Flag",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"environment\": \"production\"\n}", "options": { "raw": { "language": "json" } } },
-            "url": { "raw": "{{base_url}}/flags/:key/toggle/", "host": ["{{base_url}}"], "path": ["flags", ":key", "toggle", ""], "variable": [{ "key": "key", "value": "dark-mode" }] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"environment\": \"production\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/toggle/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "flags", ":key", "toggle", ""],
+              "variable": [{"key": "key", "value": "dark-mode"}]
+            },
             "description": "Flip the per-environment kill switch (EnvironmentFlag.is_enabled) for the named environment. The state is created on first toggle (off by default), invalidates the flag cache, and writes an audit entry."
           },
           "response": [
@@ -573,15 +894,23 @@
               "name": "200 OK — Flag toggled",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": { "mode": "raw", "raw": "{\n  \"environment\": \"production\"\n}", "options": { "raw": { "language": "json" } } },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/toggle/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "toggle", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"environment\": \"production\"\n}",
+                  "options": {"raw": {"language": "json"}}
+                },
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/toggle/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", "toggle", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 5,\n  \"flag_key\": \"dark-mode\",\n  \"feature_flag\": 1,\n  \"is_enabled\": true,\n  \"rollout_percentage\": 0,\n  \"updated_at\": \"2026-07-04T12:00:00Z\"\n}"
             },
@@ -589,15 +918,19 @@
               "name": "400 Bad Request — Missing environment",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/toggle/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "toggle", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {"mode": "raw", "raw": "{}", "options": {"raw": {"language": "json"}}},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/toggle/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", "toggle", ""]
+                }
               },
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"'environment' is required.\"\n}"
             },
@@ -605,15 +938,23 @@
               "name": "404 Not Found — Unknown environment",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": { "mode": "raw", "raw": "{\n  \"environment\": \"staging\"\n}", "options": { "raw": { "language": "json" } } },
-                "url": { "raw": "{{base_url}}/flags/dark-mode/toggle/", "host": ["{{base_url}}"], "path": ["flags", "dark-mode", "toggle", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"environment\": \"staging\"\n}",
+                  "options": {"raw": {"language": "json"}}
+                },
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/dark-mode/toggle/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", "dark-mode", "toggle", ""]
+                }
               },
               "status": "Not Found",
               "code": 404,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Environment 'staging' not found.\"\n}"
             }
@@ -626,12 +967,12 @@
               "name": "List Variations",
               "request": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
                 "url": {
-                  "raw": "{{base_url}}/flags/:key/variations/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/variations/",
                   "host": ["{{base_url}}"],
-                  "path": ["flags", ":key", "variations", ""],
-                  "variable": [{ "key": "key", "value": "button-theme" }]
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "variations", ""],
+                  "variable": [{"key": "key", "value": "button-theme"}]
                 }
               },
               "response": [
@@ -639,17 +980,17 @@
                   "name": "200 OK — List of variations",
                   "originalRequest": {
                     "method": "GET",
-                    "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                    "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
                     "url": {
-                      "raw": "{{base_url}}/flags/button-theme/variations/",
+                      "raw": "{{base_url}}/projects/{{project_key}}/flags/button-theme/variations/",
                       "host": ["{{base_url}}"],
-                      "path": ["flags", "button-theme", "variations", ""]
+                      "path": ["projects", "{{project_key}}", "flags", "button-theme", "variations", ""]
                     }
                   },
                   "status": "OK",
                   "code": 200,
                   "_postman_previewlanguage": "json",
-                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
                   "cookie": [],
                   "body": "[\n  {\n    \"id\": 3,\n    \"name\": \"red\",\n    \"value_type\": \"string\",\n    \"value\": \"#ff0000\",\n    \"created_at\": \"2026-06-14T10:10:00Z\",\n    \"updated_at\": \"2026-06-14T10:10:00Z\"\n  },\n  {\n    \"id\": 4,\n    \"name\": \"blue\",\n    \"value_type\": \"string\",\n    \"value\": \"#0000ff\",\n    \"created_at\": \"2026-06-14T10:11:00Z\",\n    \"updated_at\": \"2026-06-14T10:11:00Z\"\n  }\n]"
                 }
@@ -659,18 +1000,18 @@
               "name": "Create Variation (String)",
               "request": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
                 "url": {
-                  "raw": "{{base_url}}/flags/:key/variations/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/variations/",
                   "host": ["{{base_url}}"],
-                  "path": ["flags", ":key", "variations", ""],
-                  "variable": [{ "key": "key", "value": "button-theme" }]
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "variations", ""],
+                  "variable": [{"key": "key", "value": "button-theme"}]
                 },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"red\",\n  \"value_type\": \"string\",\n  \"value\": \"#ff0000\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 },
                 "description": "value_type choices: boolean, string, number, json.\n\nExamples:\n- boolean:  { \"value_type\": \"boolean\", \"value\": true }\n- string:   { \"value_type\": \"string\",  \"value\": \"red\" }\n- number:   { \"value_type\": \"number\",  \"value\": 5000 }\n- json:     { \"value_type\": \"json\",    \"value\": {\"color\": \"#f00\", \"weight\": 700} }"
               },
@@ -679,23 +1020,23 @@
                   "name": "201 Created — String variation",
                   "originalRequest": {
                     "method": "POST",
-                    "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                    "header": [{ "key": "Content-Type", "value": "application/json" }],
+                    "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
                     "url": {
-                      "raw": "{{base_url}}/flags/button-theme/variations/",
+                      "raw": "{{base_url}}/projects/{{project_key}}/flags/button-theme/variations/",
                       "host": ["{{base_url}}"],
-                      "path": ["flags", "button-theme", "variations", ""]
+                      "path": ["projects", "{{project_key}}", "flags", "button-theme", "variations", ""]
                     },
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"name\": \"red\",\n  \"value_type\": \"string\",\n  \"value\": \"#ff0000\"\n}",
-                      "options": { "raw": { "language": "json" } }
+                      "options": {"raw": {"language": "json"}}
                     }
                   },
                   "status": "Created",
                   "code": 201,
                   "_postman_previewlanguage": "json",
-                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
                   "cookie": [],
                   "body": "{\n  \"id\": 3,\n  \"name\": \"red\",\n  \"value_type\": \"string\",\n  \"value\": \"#ff0000\",\n  \"created_at\": \"2026-06-14T10:10:00Z\",\n  \"updated_at\": \"2026-06-14T10:10:00Z\"\n}"
                 }
@@ -705,18 +1046,18 @@
               "name": "Create Variation (Boolean)",
               "request": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
                 "url": {
-                  "raw": "{{base_url}}/flags/:key/variations/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/variations/",
                   "host": ["{{base_url}}"],
-                  "path": ["flags", ":key", "variations", ""],
-                  "variable": [{ "key": "key", "value": "button-theme" }]
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "variations", ""],
+                  "variable": [{"key": "key", "value": "button-theme"}]
                 },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"enabled\",\n  \"value_type\": \"boolean\",\n  \"value\": true\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "response": [
@@ -724,23 +1065,23 @@
                   "name": "201 Created — Boolean variation",
                   "originalRequest": {
                     "method": "POST",
-                    "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                    "header": [{ "key": "Content-Type", "value": "application/json" }],
+                    "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
                     "url": {
-                      "raw": "{{base_url}}/flags/button-theme/variations/",
+                      "raw": "{{base_url}}/projects/{{project_key}}/flags/button-theme/variations/",
                       "host": ["{{base_url}}"],
-                      "path": ["flags", "button-theme", "variations", ""]
+                      "path": ["projects", "{{project_key}}", "flags", "button-theme", "variations", ""]
                     },
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"name\": \"enabled\",\n  \"value_type\": \"boolean\",\n  \"value\": true\n}",
-                      "options": { "raw": { "language": "json" } }
+                      "options": {"raw": {"language": "json"}}
                     }
                   },
                   "status": "Created",
                   "code": 201,
                   "_postman_previewlanguage": "json",
-                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
                   "cookie": [],
                   "body": "{\n  \"id\": 5,\n  \"name\": \"enabled\",\n  \"value_type\": \"boolean\",\n  \"value\": true,\n  \"created_at\": \"2026-06-14T10:12:00Z\",\n  \"updated_at\": \"2026-06-14T10:12:00Z\"\n}"
                 }
@@ -750,18 +1091,18 @@
               "name": "Create Variation (JSON)",
               "request": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
                 "url": {
-                  "raw": "{{base_url}}/flags/:key/variations/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/variations/",
                   "host": ["{{base_url}}"],
-                  "path": ["flags", ":key", "variations", ""],
-                  "variable": [{ "key": "key", "value": "button-theme" }]
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "variations", ""],
+                  "variable": [{"key": "key", "value": "button-theme"}]
                 },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"brand-config\",\n  \"value_type\": \"json\",\n  \"value\": {\n    \"color\": \"#ff0000\",\n    \"font_weight\": 700,\n    \"border_radius\": 4\n  }\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "response": [
@@ -769,23 +1110,23 @@
                   "name": "201 Created — JSON variation",
                   "originalRequest": {
                     "method": "POST",
-                    "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                    "header": [{ "key": "Content-Type", "value": "application/json" }],
+                    "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
                     "url": {
-                      "raw": "{{base_url}}/flags/button-theme/variations/",
+                      "raw": "{{base_url}}/projects/{{project_key}}/flags/button-theme/variations/",
                       "host": ["{{base_url}}"],
-                      "path": ["flags", "button-theme", "variations", ""]
+                      "path": ["projects", "{{project_key}}", "flags", "button-theme", "variations", ""]
                     },
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"name\": \"brand-config\",\n  \"value_type\": \"json\",\n  \"value\": {\n    \"color\": \"#ff0000\",\n    \"font_weight\": 700,\n    \"border_radius\": 4\n  }\n}",
-                      "options": { "raw": { "language": "json" } }
+                      "options": {"raw": {"language": "json"}}
                     }
                   },
                   "status": "Created",
                   "code": 201,
                   "_postman_previewlanguage": "json",
-                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
                   "cookie": [],
                   "body": "{\n  \"id\": 6,\n  \"name\": \"brand-config\",\n  \"value_type\": \"json\",\n  \"value\": {\n    \"color\": \"#ff0000\",\n    \"font_weight\": 700,\n    \"border_radius\": 4\n  },\n  \"created_at\": \"2026-06-14T10:13:00Z\",\n  \"updated_at\": \"2026-06-14T10:13:00Z\"\n}"
                 }
@@ -795,21 +1136,26 @@
               "name": "Update Variation (PATCH)",
               "request": {
                 "method": "PATCH",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
                 "url": {
-                  "raw": "{{base_url}}/flags/:key/variations/:variation_id/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/variations/:variation_id/",
                   "host": ["{{base_url}}"],
-                  "path": ["flags", ":key", "variations", ":variation_id", ""],
-                  "variable": [
-                    { "key": "key", "value": "button-theme" },
-                    { "key": "variation_id", "value": "3" }
-                  ]
+                  "path": [
+                    "projects",
+                    "{{project_key}}",
+                    "flags",
+                    ":key",
+                    "variations",
+                    ":variation_id",
+                    ""
+                  ],
+                  "variable": [{"key": "key", "value": "button-theme"}, {"key": "variation_id", "value": "3"}]
                 },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"value\": \"#cc0000\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "response": [
@@ -817,23 +1163,31 @@
                   "name": "200 OK — Variation updated",
                   "originalRequest": {
                     "method": "PATCH",
-                    "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                    "header": [{ "key": "Content-Type", "value": "application/json" }],
+                    "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
                     "url": {
-                      "raw": "{{base_url}}/flags/button-theme/variations/3/",
+                      "raw": "{{base_url}}/projects/{{project_key}}/flags/button-theme/variations/3/",
                       "host": ["{{base_url}}"],
-                      "path": ["flags", "button-theme", "variations", "3", ""]
+                      "path": [
+                        "projects",
+                        "{{project_key}}",
+                        "flags",
+                        "button-theme",
+                        "variations",
+                        "3",
+                        ""
+                      ]
                     },
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"value\": \"#cc0000\"\n}",
-                      "options": { "raw": { "language": "json" } }
+                      "options": {"raw": {"language": "json"}}
                     }
                   },
                   "status": "OK",
                   "code": 200,
                   "_postman_previewlanguage": "json",
-                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
                   "cookie": [],
                   "body": "{\n  \"id\": 3,\n  \"name\": \"red\",\n  \"value_type\": \"string\",\n  \"value\": \"#cc0000\",\n  \"created_at\": \"2026-06-14T10:10:00Z\",\n  \"updated_at\": \"2026-06-14T10:40:00Z\"\n}"
                 }
@@ -843,15 +1197,20 @@
               "name": "Delete Variation",
               "request": {
                 "method": "DELETE",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
                 "url": {
-                  "raw": "{{base_url}}/flags/:key/variations/:variation_id/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/variations/:variation_id/",
                   "host": ["{{base_url}}"],
-                  "path": ["flags", ":key", "variations", ":variation_id", ""],
-                  "variable": [
-                    { "key": "key", "value": "button-theme" },
-                    { "key": "variation_id", "value": "3" }
-                  ]
+                  "path": [
+                    "projects",
+                    "{{project_key}}",
+                    "flags",
+                    ":key",
+                    "variations",
+                    ":variation_id",
+                    ""
+                  ],
+                  "variable": [{"key": "key", "value": "button-theme"}, {"key": "variation_id", "value": "3"}]
                 }
               },
               "response": [
@@ -859,11 +1218,19 @@
                   "name": "204 No Content — Variation deleted",
                   "originalRequest": {
                     "method": "DELETE",
-                    "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
+                    "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
                     "url": {
-                      "raw": "{{base_url}}/flags/button-theme/variations/3/",
+                      "raw": "{{base_url}}/projects/{{project_key}}/flags/button-theme/variations/3/",
                       "host": ["{{base_url}}"],
-                      "path": ["flags", "button-theme", "variations", "3", ""]
+                      "path": [
+                        "projects",
+                        "{{project_key}}",
+                        "flags",
+                        "button-theme",
+                        "variations",
+                        "3",
+                        ""
+                      ]
                     }
                   },
                   "status": "No Content",
@@ -876,6 +1243,173 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Individual Targeting",
+          "item": [
+            {
+              "name": "List Targets",
+              "request": {
+                "method": "GET",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/targets/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "targets", ""],
+                  "variable": [{"key": "key", "value": "dark-mode"}]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Target a User (allowlist)",
+              "request": {
+                "method": "PUT",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/targets/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "targets", ""],
+                  "variable": [{"key": "key", "value": "dark-mode"}]
+                },
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_key\": \"u_123\",\n  \"variation\": 1\n}",
+                  "options": {"raw": {"language": "json"}}
+                },
+                "description": "Pin one user to a variation, overriding rules and rollout. 201 on create, 200 when re-targeting. Point at the true/fallthrough variation for an allowlist, the false/off variation for a denylist."
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Target",
+              "request": {
+                "method": "DELETE",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/targets/:user_key/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "targets", ":user_key", ""],
+                  "variable": [{"key": "key", "value": "dark-mode"}, {"key": "user_key", "value": "u_123"}]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Prerequisites",
+          "item": [
+            {
+              "name": "List Prerequisites",
+              "request": {
+                "method": "GET",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/prerequisites/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "prerequisites", ""],
+                  "variable": [{"key": "key", "value": "new-checkout"}]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Add Prerequisite",
+              "request": {
+                "method": "PUT",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/prerequisites/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "prerequisites", ""],
+                  "variable": [{"key": "key", "value": "new-checkout"}]
+                },
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"prerequisite_key\": \"new-cart\",\n  \"variation_id\": 1\n}",
+                  "options": {"raw": {"language": "json"}}
+                },
+                "description": "Gate this flag behind another serving a specific variation. Returns 409 if it would close a cycle."
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Prerequisite",
+              "request": {
+                "method": "DELETE",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/prerequisites/:prerequisite_key/",
+                  "host": ["{{base_url}}"],
+                  "path": [
+                    "projects",
+                    "{{project_key}}",
+                    "flags",
+                    ":key",
+                    "prerequisites",
+                    ":prerequisite_key",
+                    ""
+                  ],
+                  "variable": [
+                    {"key": "key", "value": "new-checkout"},
+                    {"key": "prerequisite_key", "value": "new-cart"}
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Version History",
+          "item": [
+            {
+              "name": "List Versions",
+              "request": {
+                "method": "GET",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/versions/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "versions", ""],
+                  "variable": [{"key": "key", "value": "dark-mode"}]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Version",
+              "request": {
+                "method": "GET",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/versions/:n/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "versions", ":n", ""],
+                  "variable": [{"key": "key", "value": "dark-mode"}, {"key": "n", "value": "1"}]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Rollback to Version",
+              "request": {
+                "method": "POST",
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/flags/:key/versions/:n/rollback/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "flags", ":key", "versions", ":n", "rollback", ""],
+                  "variable": [{"key": "key", "value": "dark-mode"}, {"key": "n", "value": "1"}]
+                },
+                "description": "Append-only: writes a new rollback version rather than rewriting history."
+              },
+              "response": []
+            }
+          ]
         }
       ]
     },
@@ -886,21 +1420,21 @@
           "name": "List Rules",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {"raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""]}
           },
           "response": [
             {
               "name": "200 OK — List of rules",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {"raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""]}
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "[\n  {\n    \"id\": 1,\n    \"flag\": 1,\n    \"attribute\": \"country\",\n    \"operator\": \"eq\",\n    \"value\": \"US\",\n    \"priority\": 1,\n    \"serve_variation\": null,\n    \"created_at\": \"2026-06-14T10:15:00Z\",\n    \"updated_at\": \"2026-06-14T10:15:00Z\"\n  },\n  {\n    \"id\": 2,\n    \"flag\": 2,\n    \"attribute\": \"plan\",\n    \"operator\": \"eq\",\n    \"value\": \"premium\",\n    \"priority\": 1,\n    \"serve_variation\": 3,\n    \"created_at\": \"2026-06-14T10:16:00Z\",\n    \"updated_at\": \"2026-06-14T10:16:00Z\"\n  }\n]"
             }
@@ -910,13 +1444,13 @@
           "name": "Create Rule",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""]},
             "body": {
               "mode": "raw",
               "raw": "{\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"eq\",\n  \"value\": \"US\",\n  \"priority\": 1,\n  \"serve_variation\": null\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "operator choices: eq, neq, contains, in, not_in, gt, lt\n\nserve_variation: null for boolean flags (returns true on match). For multivariate flags, set to a variation ID to serve a specific variation when this rule matches."
           },
@@ -925,19 +1459,19 @@
               "name": "201 Created — Rule created (boolean flag)",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {"raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""]},
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"eq\",\n  \"value\": \"US\",\n  \"priority\": 1,\n  \"serve_variation\": null\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"eq\",\n  \"value\": \"US\",\n  \"priority\": 1,\n  \"serve_variation\": null,\n  \"created_at\": \"2026-06-14T10:15:00Z\",\n  \"updated_at\": \"2026-06-14T10:15:00Z\"\n}"
             },
@@ -945,19 +1479,19 @@
               "name": "400 Bad Request — Flag not found or not accessible",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {"raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""]},
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag\": 999,\n  \"attribute\": \"country\",\n  \"operator\": \"eq\",\n  \"value\": \"US\",\n  \"priority\": 1\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"flag\": [\n    \"Invalid pk \\u2014 flag not found or not accessible.\"\n  ]\n}"
             }
@@ -967,13 +1501,13 @@
           "name": "Create Rule (Multivariate)",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""]},
             "body": {
               "mode": "raw",
               "raw": "{\n  \"flag\": 2,\n  \"attribute\": \"plan\",\n  \"operator\": \"eq\",\n  \"value\": \"premium\",\n  \"priority\": 1,\n  \"serve_variation\": 3\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "Users matching this rule are served variation ID 3. Use for multivariate targeting — e.g. premium users get the 'red' button, free users get 'blue'."
           },
@@ -982,19 +1516,19 @@
               "name": "201 Created — Rule with serve_variation",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {"raw": "{{base_url}}/rules/", "host": ["{{base_url}}"], "path": ["rules", ""]},
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag\": 2,\n  \"attribute\": \"plan\",\n  \"operator\": \"eq\",\n  \"value\": \"premium\",\n  \"priority\": 1,\n  \"serve_variation\": 3\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 2,\n  \"flag\": 2,\n  \"attribute\": \"plan\",\n  \"operator\": \"eq\",\n  \"value\": \"premium\",\n  \"priority\": 1,\n  \"serve_variation\": 3,\n  \"created_at\": \"2026-06-14T10:16:00Z\",\n  \"updated_at\": \"2026-06-14T10:16:00Z\"\n}"
             }
@@ -1004,21 +1538,30 @@
           "name": "Get Rule",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/rules/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["rules", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Rule detail",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/rules/1/", "host": ["{{base_url}}"], "path": ["rules", "1", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/rules/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["rules", "1", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"eq\",\n  \"value\": \"US\",\n  \"priority\": 1,\n  \"serve_variation\": null,\n  \"created_at\": \"2026-06-14T10:15:00Z\",\n  \"updated_at\": \"2026-06-14T10:15:00Z\"\n}"
             }
@@ -1028,13 +1571,18 @@
           "name": "Update Rule (PUT)",
           "request": {
             "method": "PUT",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/rules/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["rules", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"in\",\n  \"value\": \"US,CA\",\n  \"priority\": 1,\n  \"serve_variation\": null\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             }
           },
           "response": [
@@ -1042,19 +1590,23 @@
               "name": "200 OK — Rule replaced",
               "originalRequest": {
                 "method": "PUT",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/rules/1/", "host": ["{{base_url}}"], "path": ["rules", "1", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/rules/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["rules", "1", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"in\",\n  \"value\": \"US,CA\",\n  \"priority\": 1,\n  \"serve_variation\": null\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"in\",\n  \"value\": \"US,CA\",\n  \"priority\": 1,\n  \"serve_variation\": null,\n  \"created_at\": \"2026-06-14T10:15:00Z\",\n  \"updated_at\": \"2026-06-14T10:45:00Z\"\n}"
             }
@@ -1064,13 +1616,18 @@
           "name": "Partial Update Rule (PATCH)",
           "request": {
             "method": "PATCH",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/rules/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["rules", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"serve_variation\": 3\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             }
           },
           "response": [
@@ -1078,19 +1635,23 @@
               "name": "200 OK — Rule partially updated",
               "originalRequest": {
                 "method": "PATCH",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/rules/1/", "host": ["{{base_url}}"], "path": ["rules", "1", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/rules/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["rules", "1", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"serve_variation\": 3\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"flag\": 1,\n  \"attribute\": \"country\",\n  \"operator\": \"in\",\n  \"value\": \"US,CA\",\n  \"priority\": 1,\n  \"serve_variation\": 3,\n  \"created_at\": \"2026-06-14T10:15:00Z\",\n  \"updated_at\": \"2026-06-14T10:46:00Z\"\n}"
             }
@@ -1100,16 +1661,25 @@
           "name": "Delete Rule",
           "request": {
             "method": "DELETE",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/rules/:id/", "host": ["{{base_url}}"], "path": ["rules", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/rules/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["rules", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "204 No Content — Rule deleted",
               "originalRequest": {
                 "method": "DELETE",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/rules/1/", "host": ["{{base_url}}"], "path": ["rules", "1", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/rules/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["rules", "1", ""]
+                }
               },
               "status": "No Content",
               "code": 204,
@@ -1123,27 +1693,261 @@
       ]
     },
     {
+      "name": "Segments",
+      "item": [
+        {
+          "name": "List Segments",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Segment",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ""]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"beta-testers\",\n  \"name\": \"Beta Testers\",\n  \"description\": \"Users opted into the beta programme\"\n}",
+              "options": {"raw": {"language": "json"}}
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Segment",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            },
+            "description": "Embeds the segment's targets and rules."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Segment",
+          "request": {
+            "method": "PATCH",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Beta Programme\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "`key` is immutable - rules reference the segment by it."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Segment",
+          "request": {
+            "method": "DELETE",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            },
+            "description": "Returns 409 while any targeting rule still references it."
+          },
+          "response": []
+        },
+        {
+          "name": "Include a User",
+          "request": {
+            "method": "PUT",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/targets/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "targets", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_key\": \"u_123\",\n  \"excluded\": false\n}",
+              "options": {"raw": {"language": "json"}}
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Exclude a User",
+          "request": {
+            "method": "PUT",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/targets/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "targets", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_key\": \"u_456\",\n  \"excluded\": true\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Exclusion beats inclusion and beats any matching rule."
+          },
+          "response": []
+        },
+        {
+          "name": "List Members",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/targets/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "targets", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Member",
+          "request": {
+            "method": "DELETE",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/targets/:user_key/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "targets", ":user_key", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}, {"key": "user_key", "value": "u_123"}]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Segment Rules",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/rules/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "rules", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Segment Rule",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/rules/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "rules", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attribute\": \"plan\",\n  \"operator\": \"eq\",\n  \"value\": \"pro\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Any matching rule admits a user. Segment operators are rejected - segments do not nest."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Segment Rule",
+          "request": {
+            "method": "PATCH",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/rules/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "rules", ":id", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}, {"key": "id", "value": "1"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"enterprise\"\n}",
+              "options": {"raw": {"language": "json"}}
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Segment Rule",
+          "request": {
+            "method": "DELETE",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/segments/:key/rules/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "segments", ":key", "rules", ":id", ""],
+              "variable": [{"key": "key", "value": "beta-testers"}, {"key": "id", "value": "1"}]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Environments",
       "item": [
         {
           "name": "List Environments",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/environments/", "host": ["{{base_url}}"], "path": ["environments", ""] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ""]
+            }
           },
           "response": [
             {
               "name": "200 OK — List of environments",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/environments/", "host": ["{{base_url}}"], "path": ["environments", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/environments/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "environments", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"production\",\n    \"created_at\": \"2026-06-14T09:00:00Z\",\n    \"updated_at\": \"2026-06-14T09:00:00Z\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"staging\",\n    \"created_at\": \"2026-06-14T09:01:00Z\",\n    \"updated_at\": \"2026-06-14T09:01:00Z\"\n  }\n]"
             }
@@ -1153,13 +1957,17 @@
           "name": "Create Environment",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/environments/", "host": ["{{base_url}}"], "path": ["environments", ""] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ""]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"production\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "name choices: development, staging, production"
           },
@@ -1168,19 +1976,23 @@
               "name": "201 Created — Environment created",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/environments/", "host": ["{{base_url}}"], "path": ["environments", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/environments/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "environments", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"production\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"production\",\n  \"created_at\": \"2026-06-14T09:00:00Z\",\n  \"updated_at\": \"2026-06-14T09:00:00Z\"\n}"
             },
@@ -1188,19 +2000,23 @@
               "name": "400 Bad Request — Invalid environment name",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/environments/", "host": ["{{base_url}}"], "path": ["environments", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/environments/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "environments", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"invalid-env\"\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"name\": [\n    \"Must be one of: development, production, staging.\"\n  ]\n}"
             }
@@ -1210,21 +2026,30 @@
           "name": "Get Environment",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/environments/:id/", "host": ["{{base_url}}"], "path": ["environments", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Environment detail",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/environments/1/", "host": ["{{base_url}}"], "path": ["environments", "1", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/environments/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "environments", "1", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"production\",\n  \"created_at\": \"2026-06-14T09:00:00Z\",\n  \"updated_at\": \"2026-06-14T09:00:00Z\"\n}"
             }
@@ -1234,16 +2059,25 @@
           "name": "Delete Environment",
           "request": {
             "method": "DELETE",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/environments/:id/", "host": ["{{base_url}}"], "path": ["environments", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "204 No Content — Environment deleted",
               "originalRequest": {
                 "method": "DELETE",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/environments/1/", "host": ["{{base_url}}"], "path": ["environments", "1", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/environments/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "environments", "1", ""]
+                }
               },
               "status": "No Content",
               "code": 204,
@@ -1258,21 +2092,30 @@
           "name": "List Environment Flags",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/environments/:id/flags/", "host": ["{{base_url}}"], "path": ["environments", ":id", "flags", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/:id/flags/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ":id", "flags", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Flags in environment",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/environments/1/flags/", "host": ["{{base_url}}"], "path": ["environments", "1", "flags", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_key}}/environments/1/flags/",
+                  "host": ["{{base_url}}"],
+                  "path": ["projects", "{{project_key}}", "environments", "1", "flags", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "[\n  {\n    \"id\": 1,\n    \"flag_key\": \"dark-mode\",\n    \"feature_flag\": 1,\n    \"is_enabled\": false,\n    \"rollout_percentage\": 0,\n    \"updated_at\": \"2026-06-14T09:00:00Z\"\n  },\n  {\n    \"id\": 2,\n    \"flag_key\": \"button-theme\",\n    \"feature_flag\": 2,\n    \"is_enabled\": false,\n    \"rollout_percentage\": 0,\n    \"updated_at\": \"2026-06-14T09:00:00Z\"\n  }\n]"
             }
@@ -1282,21 +2125,18 @@
           "name": "Update Environment Flag State",
           "request": {
             "method": "PATCH",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
             "url": {
-              "raw": "{{base_url}}/environments/:id/flags/:flag_id/",
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/:id/flags/:flag_id/",
               "host": ["{{base_url}}"],
-              "path": ["environments", ":id", "flags", ":flag_id", ""],
-              "variable": [
-                { "key": "id", "value": "1" },
-                { "key": "flag_id", "value": "1" }
-              ]
+              "path": ["projects", "{{project_key}}", "environments", ":id", "flags", ":flag_id", ""],
+              "variable": [{"key": "id", "value": "1"}, {"key": "flag_id", "value": "1"}]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"is_enabled\": true,\n  \"rollout_percentage\": 100\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             }
           },
           "response": [
@@ -1304,23 +2144,23 @@
               "name": "200 OK — Environment flag state updated",
               "originalRequest": {
                 "method": "PATCH",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
                 "url": {
-                  "raw": "{{base_url}}/environments/1/flags/1/",
+                  "raw": "{{base_url}}/projects/{{project_key}}/environments/1/flags/1/",
                   "host": ["{{base_url}}"],
-                  "path": ["environments", "1", "flags", "1", ""]
+                  "path": ["projects", "{{project_key}}", "environments", "1", "flags", "1", ""]
                 },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"is_enabled\": true,\n  \"rollout_percentage\": 100\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"flag_key\": \"dark-mode\",\n  \"feature_flag\": 1,\n  \"is_enabled\": true,\n  \"rollout_percentage\": 100,\n  \"updated_at\": \"2026-06-14T11:00:00Z\"\n}"
             }
@@ -1335,21 +2175,25 @@
           "name": "List SDK Keys",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {"raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""]}
           },
           "response": [
             {
               "name": "200 OK — List of SDK keys (prefix only, full key never returned)",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/sdk-keys/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk-keys", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"My Server Key\",\n    \"prefix\": \"sdk_server_a1b2\",\n    \"key_type\": \"server\",\n    \"environment\": 1,\n    \"environment_name\": \"production\",\n    \"is_active\": true,\n    \"last_used_at\": \"2026-06-14T10:50:00Z\",\n    \"created_at\": \"2026-06-14T10:00:00Z\",\n    \"updated_at\": \"2026-06-14T10:50:00Z\"\n  }\n]"
             }
@@ -1373,13 +2217,13 @@
           ],
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""]},
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"My Server Key\",\n  \"key_type\": \"server\",\n  \"environment\": 1\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "key_type choices: server, client.\n\nThe full key is returned once in the `key` field and auto-saved to {{sdk_key}}. Store it — it cannot be recovered after this response."
           },
@@ -1388,19 +2232,23 @@
               "name": "201 Created — Full key returned once",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/sdk-keys/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk-keys", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"My Server Key\",\n  \"key_type\": \"server\",\n  \"environment\": 1\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"My Server Key\",\n  \"prefix\": \"sdk_server_a1b2\",\n  \"key_type\": \"server\",\n  \"environment\": 1,\n  \"environment_name\": \"production\",\n  \"is_active\": true,\n  \"last_used_at\": null,\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T10:00:00Z\",\n  \"key\": \"sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3\"\n}"
             },
@@ -1408,19 +2256,23 @@
               "name": "400 Bad Request — Environment not found",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "url": { "raw": "{{base_url}}/sdk-keys/", "host": ["{{base_url}}"], "path": ["sdk-keys", ""] },
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/sdk-keys/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk-keys", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Bad Key\",\n  \"key_type\": \"server\",\n  \"environment\": 999\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"environment\": [\n    \"Environment not found or not owned by you.\"\n  ]\n}"
             }
@@ -1430,21 +2282,30 @@
           "name": "Get SDK Key",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/sdk-keys/:id/", "host": ["{{base_url}}"], "path": ["sdk-keys", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/sdk-keys/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["sdk-keys", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — SDK key detail (prefix only)",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/sdk-keys/1/", "host": ["{{base_url}}"], "path": ["sdk-keys", "1", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/sdk-keys/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk-keys", "1", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"My Server Key\",\n  \"prefix\": \"sdk_server_a1b2\",\n  \"key_type\": \"server\",\n  \"environment\": 1,\n  \"environment_name\": \"production\",\n  \"is_active\": true,\n  \"last_used_at\": \"2026-06-14T10:50:00Z\",\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T10:50:00Z\"\n}"
             }
@@ -1454,21 +2315,30 @@
           "name": "Revoke SDK Key",
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/sdk-keys/:id/revoke/", "host": ["{{base_url}}"], "path": ["sdk-keys", ":id", "revoke", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/sdk-keys/:id/revoke/",
+              "host": ["{{base_url}}"],
+              "path": ["sdk-keys", ":id", "revoke", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Key revoked",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/sdk-keys/1/revoke/", "host": ["{{base_url}}"], "path": ["sdk-keys", "1", "revoke", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/sdk-keys/1/revoke/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk-keys", "1", "revoke", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"name\": \"My Server Key\",\n  \"prefix\": \"sdk_server_a1b2\",\n  \"key_type\": \"server\",\n  \"environment\": 1,\n  \"environment_name\": \"production\",\n  \"is_active\": false,\n  \"last_used_at\": \"2026-06-14T10:50:00Z\",\n  \"created_at\": \"2026-06-14T10:00:00Z\",\n  \"updated_at\": \"2026-06-14T11:05:00Z\"\n}"
             },
@@ -1476,13 +2346,17 @@
               "name": "409 Conflict — Key already revoked",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/sdk-keys/1/revoke/", "host": ["{{base_url}}"], "path": ["sdk-keys", "1", "revoke", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/sdk-keys/1/revoke/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk-keys", "1", "revoke", ""]
+                }
               },
               "status": "Conflict",
               "code": 409,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Key is already revoked.\"\n}"
             }
@@ -1506,8 +2380,13 @@
           ],
           "request": {
             "method": "POST",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/sdk-keys/:id/rotate/", "host": ["{{base_url}}"], "path": ["sdk-keys", ":id", "rotate", ""], "variable": [{ "key": "id", "value": "1" }] },
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/sdk-keys/:id/rotate/",
+              "host": ["{{base_url}}"],
+              "path": ["sdk-keys", ":id", "rotate", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            },
             "description": "Revokes the old key and issues a replacement. The new full key is auto-saved to {{sdk_key}}."
           },
           "response": [
@@ -1515,13 +2394,17 @@
               "name": "201 Created — New key issued, old key revoked",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/sdk-keys/1/rotate/", "host": ["{{base_url}}"], "path": ["sdk-keys", "1", "rotate", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/sdk-keys/1/rotate/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk-keys", "1", "rotate", ""]
+                }
               },
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 2,\n  \"name\": \"My Server Key\",\n  \"prefix\": \"sdk_server_z9y8\",\n  \"key_type\": \"server\",\n  \"environment\": 1,\n  \"environment_name\": \"production\",\n  \"is_active\": true,\n  \"last_used_at\": null,\n  \"created_at\": \"2026-06-14T11:10:00Z\",\n  \"updated_at\": \"2026-06-14T11:10:00Z\",\n  \"key\": \"sdk_server_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7\"\n}"
             }
@@ -1536,16 +2419,20 @@
           "name": "Evaluate Flag",
           "request": {
             "method": "POST",
-            "auth": { "type": "noauth" },
+            "auth": {"type": "noauth"},
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-SDK-Key", "value": "{{sdk_key}}" }
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-SDK-Key", "value": "{{sdk_key}}"}
             ],
-            "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+            "url": {
+              "raw": "{{base_url}}/sdk/evaluate/",
+              "host": ["{{base_url}}"],
+              "path": ["sdk", "evaluate", ""]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"flag_key\": \"dark-mode\",\n  \"user_context\": {\n    \"user_id\": \"u123\",\n    \"country\": \"US\",\n    \"plan\": \"premium\"\n  }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "Auth: X-SDK-Key header. Set {{sdk_key}} via Create SDK Key or Rotate SDK Key — the test script auto-saves it.\n\nResponse:\n{\n  \"flag_key\": \"dark-mode\",\n  \"result\": true,\n  \"result_type\": \"boolean\",\n  \"environment\": \"production\"\n}\n\nresult_type values: boolean | string | number | json\nFor multivariate flags, result is the variation value (e.g. \"red\", 5000, {\"color\": \"#f00\"})."
           },
@@ -1554,22 +2441,29 @@
               "name": "200 OK — Boolean flag evaluated (rule match)",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
+                "auth": {"type": "noauth"},
                 "header": [
-                  { "key": "Content-Type", "value": "application/json" },
-                  { "key": "X-SDK-Key", "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3" }
+                  {"key": "Content-Type", "value": "application/json"},
+                  {
+                    "key": "X-SDK-Key",
+                    "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3"
+                  }
                 ],
-                "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+                "url": {
+                  "raw": "{{base_url}}/sdk/evaluate/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "evaluate", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag_key\": \"dark-mode\",\n  \"user_context\": {\n    \"user_id\": \"u123\",\n    \"country\": \"US\",\n    \"plan\": \"premium\"\n  }\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"flag_key\": \"dark-mode\",\n  \"result\": true,\n  \"result_type\": \"boolean\",\n  \"environment\": \"production\"\n}"
             },
@@ -1577,22 +2471,26 @@
               "name": "401 Unauthorized — Invalid or revoked SDK key",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
+                "auth": {"type": "noauth"},
                 "header": [
-                  { "key": "Content-Type", "value": "application/json" },
-                  { "key": "X-SDK-Key", "value": "sdk_server_invalid_key" }
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "X-SDK-Key", "value": "sdk_server_invalid_key"}
                 ],
-                "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+                "url": {
+                  "raw": "{{base_url}}/sdk/evaluate/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "evaluate", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag_key\": \"dark-mode\",\n  \"user_context\": {\"user_id\": \"u123\"}\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Unauthorized",
               "code": 401,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Invalid or revoked SDK key.\"\n}"
             },
@@ -1600,22 +2498,29 @@
               "name": "404 Not Found — Flag does not exist",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
+                "auth": {"type": "noauth"},
                 "header": [
-                  { "key": "Content-Type", "value": "application/json" },
-                  { "key": "X-SDK-Key", "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3" }
+                  {"key": "Content-Type", "value": "application/json"},
+                  {
+                    "key": "X-SDK-Key",
+                    "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3"
+                  }
                 ],
-                "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+                "url": {
+                  "raw": "{{base_url}}/sdk/evaluate/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "evaluate", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag_key\": \"non-existent-flag\",\n  \"user_context\": {\"user_id\": \"u123\"}\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "Not Found",
               "code": 404,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"detail\": \"Flag 'non-existent-flag' not found\"\n}"
             }
@@ -1625,16 +2530,20 @@
           "name": "Evaluate Multivariate Flag",
           "request": {
             "method": "POST",
-            "auth": { "type": "noauth" },
+            "auth": {"type": "noauth"},
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-SDK-Key", "value": "{{sdk_key}}" }
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-SDK-Key", "value": "{{sdk_key}}"}
             ],
-            "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+            "url": {
+              "raw": "{{base_url}}/sdk/evaluate/",
+              "host": ["{{base_url}}"],
+              "path": ["sdk", "evaluate", ""]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"flag_key\": \"button-theme\",\n  \"user_context\": {\n    \"user_id\": \"u456\",\n    \"plan\": \"premium\"\n  }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "Example multivariate evaluation. Response result will be the variation value (e.g. \"#ff0000\") and result_type will be \"string\", \"number\", \"json\", or \"boolean\" depending on the variation."
           },
@@ -1643,22 +2552,29 @@
               "name": "200 OK — Multivariate flag — rule match serves string variation",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
+                "auth": {"type": "noauth"},
                 "header": [
-                  { "key": "Content-Type", "value": "application/json" },
-                  { "key": "X-SDK-Key", "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3" }
+                  {"key": "Content-Type", "value": "application/json"},
+                  {
+                    "key": "X-SDK-Key",
+                    "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3"
+                  }
                 ],
-                "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+                "url": {
+                  "raw": "{{base_url}}/sdk/evaluate/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "evaluate", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag_key\": \"button-theme\",\n  \"user_context\": {\n    \"user_id\": \"u456\",\n    \"plan\": \"premium\"\n  }\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"flag_key\": \"button-theme\",\n  \"result\": \"#ff0000\",\n  \"result_type\": \"string\",\n  \"environment\": \"production\"\n}"
             },
@@ -1666,22 +2582,29 @@
               "name": "200 OK — Multivariate flag — fallthrough serves JSON variation",
               "originalRequest": {
                 "method": "POST",
-                "auth": { "type": "noauth" },
+                "auth": {"type": "noauth"},
                 "header": [
-                  { "key": "Content-Type", "value": "application/json" },
-                  { "key": "X-SDK-Key", "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3" }
+                  {"key": "Content-Type", "value": "application/json"},
+                  {
+                    "key": "X-SDK-Key",
+                    "value": "sdk_server_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3"
+                  }
                 ],
-                "url": { "raw": "{{base_url}}/sdk/evaluate/", "host": ["{{base_url}}"], "path": ["sdk", "evaluate", ""] },
+                "url": {
+                  "raw": "{{base_url}}/sdk/evaluate/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "evaluate", ""]
+                },
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"flag_key\": \"button-theme\",\n  \"user_context\": {\n    \"user_id\": \"u789\",\n    \"plan\": \"free\"\n  }\n}",
-                  "options": { "raw": { "language": "json" } }
+                  "options": {"raw": {"language": "json"}}
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"flag_key\": \"button-theme\",\n  \"result\": {\n    \"color\": \"#ff0000\",\n    \"font_weight\": 700,\n    \"border_radius\": 4\n  },\n  \"result_type\": \"json\",\n  \"environment\": \"production\"\n}"
             }
@@ -1696,21 +2619,21 @@
           "name": "List Audit Logs",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/audit/", "host": ["{{base_url}}"], "path": ["audit", ""] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {"raw": "{{base_url}}/audit/", "host": ["{{base_url}}"], "path": ["audit", ""]}
           },
           "response": [
             {
               "name": "200 OK — List of audit log entries",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/audit/", "host": ["{{base_url}}"], "path": ["audit", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {"raw": "{{base_url}}/audit/", "host": ["{{base_url}}"], "path": ["audit", ""]}
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "[\n  {\n    \"id\": 3,\n    \"action\": \"update\",\n    \"entity_type\": \"featureflag\",\n    \"entity_id\": \"1\",\n    \"old_value\": {\n      \"id\": 1,\n      \"name\": \"Dark Mode\",\n      \"key\": \"dark-mode\",\n      \"is_enabled\": false,\n      \"rollout_percentage\": 0\n    },\n    \"new_value\": {\n      \"id\": 1,\n      \"name\": \"Dark Mode\",\n      \"key\": \"dark-mode\",\n      \"is_enabled\": true,\n      \"rollout_percentage\": 50\n    },\n    \"created_at\": \"2026-06-14T10:20:00Z\"\n  },\n  {\n    \"id\": 2,\n    \"action\": \"create\",\n    \"entity_type\": \"featureflag\",\n    \"entity_id\": \"2\",\n    \"old_value\": null,\n    \"new_value\": {\n      \"id\": 2,\n      \"name\": \"Button Theme\",\n      \"key\": \"button-theme\",\n      \"is_enabled\": false,\n      \"rollout_percentage\": 0\n    },\n    \"created_at\": \"2026-06-14T10:05:00Z\"\n  },\n  {\n    \"id\": 1,\n    \"action\": \"create\",\n    \"entity_type\": \"featureflag\",\n    \"entity_id\": \"1\",\n    \"old_value\": null,\n    \"new_value\": {\n      \"id\": 1,\n      \"name\": \"Dark Mode\",\n      \"key\": \"dark-mode\",\n      \"is_enabled\": false,\n      \"rollout_percentage\": 0\n    },\n    \"created_at\": \"2026-06-14T10:00:00Z\"\n  }\n]"
             }
@@ -1720,21 +2643,30 @@
           "name": "Get Audit Log",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/audit/:id/", "host": ["{{base_url}}"], "path": ["audit", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/audit/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["audit", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Audit log entry detail",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/audit/1/", "host": ["{{base_url}}"], "path": ["audit", "1", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/audit/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["audit", "1", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"action\": \"create\",\n  \"entity_type\": \"featureflag\",\n  \"entity_id\": \"1\",\n  \"old_value\": null,\n  \"new_value\": {\n    \"id\": 1,\n    \"name\": \"Dark Mode\",\n    \"key\": \"dark-mode\",\n    \"is_enabled\": false,\n    \"rollout_percentage\": 0\n  },\n  \"created_at\": \"2026-06-14T10:00:00Z\"\n}"
             }
@@ -1749,21 +2681,29 @@
           "name": "List Evaluation Logs",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/evaluation/logs/", "host": ["{{base_url}}"], "path": ["evaluation", "logs", ""] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/evaluation/logs/",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation", "logs", ""]
+            }
           },
           "response": [
             {
               "name": "200 OK — List of evaluation log entries",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/evaluation/logs/", "host": ["{{base_url}}"], "path": ["evaluation", "logs", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/evaluation/logs/",
+                  "host": ["{{base_url}}"],
+                  "path": ["evaluation", "logs", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "[\n  {\n    \"id\": 2,\n    \"flag_key\": \"button-theme\",\n    \"result\": \"#ff0000\",\n    \"evaluated_at\": \"2026-06-14T11:35:00Z\"\n  },\n  {\n    \"id\": 1,\n    \"flag_key\": \"dark-mode\",\n    \"result\": true,\n    \"evaluated_at\": \"2026-06-14T11:30:00Z\"\n  }\n]"
             }
@@ -1773,21 +2713,30 @@
           "name": "Get Evaluation Log",
           "request": {
             "method": "GET",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-            "url": { "raw": "{{base_url}}/evaluation/logs/:id/", "host": ["{{base_url}}"], "path": ["evaluation", "logs", ":id", ""], "variable": [{ "key": "id", "value": "1" }] }
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/evaluation/logs/:id/",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation", "logs", ":id", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            }
           },
           "response": [
             {
               "name": "200 OK — Evaluation log entry detail",
               "originalRequest": {
                 "method": "GET",
-                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}" }] },
-                "url": { "raw": "{{base_url}}/evaluation/logs/1/", "host": ["{{base_url}}"], "path": ["evaluation", "logs", "1", ""] }
+                "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+                "url": {
+                  "raw": "{{base_url}}/evaluation/logs/1/",
+                  "host": ["{{base_url}}"],
+                  "path": ["evaluation", "logs", "1", ""]
+                }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [{"key": "Content-Type", "value": "application/json"}],
               "cookie": [],
               "body": "{\n  \"id\": 1,\n  \"flag_key\": \"dark-mode\",\n  \"result\": true,\n  \"evaluated_at\": \"2026-06-14T11:30:00Z\"\n}"
             }
