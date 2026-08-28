@@ -3,7 +3,7 @@
 [![CI](https://github.com/mohamedsamiromar/feature-flags-service/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamedsamiromar/feature-flags-service/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mohamedsamiromar/feature-flags-service)](LICENSE)
 
-A self-hosted feature flag backend built with Django and Django REST Framework. Redis-cached flag evaluation, rule-based user targeting, environment-scoped flag state, SDK key authentication, multivariate flags, and an audit trail.
+A self-hosted feature flag backend built with Django and Django REST Framework. Redis-cached flag evaluation, team multi-tenancy with role-based access, individual user targeting, reusable segments, prerequisite flags, environment-scoped state, SDK key authentication, multivariate flags, and an audit trail.
 
 Point an SDK key at `POST /api/v1/sdk/evaluate/` and evaluate flags over HTTP. Python 3.9, Django 4.2, PostgreSQL 15, Redis 7.
 
@@ -21,25 +21,26 @@ This is a personal project, not a hosted service. See [Known gaps](#known-gaps) 
            │                              │
   ┌────────▼────────┐             ┌───────▼──────────┐
   │  Dashboard API  │             │    SDK API       │
-  │  Flag CRUD      │             │  POST /sdk/      │
-  │  FlagService    │             │    evaluate/     │
-  │  AuditService   │             │  SDKKeyAuth      │
-  │  Environments   │             └───────┬──────────┘
+  │  Orgs/Projects  │             │  POST /sdk/      │
+  │  Flag CRUD      │             │    evaluate/     │
+  │  Targets        │             │  SDKKeyAuth      │
+  │  Segments       │             └───────┬──────────┘
   │  SDK Key Mgmt   │                     │
   └────────┬────────┘                     │
            └──────────────┬───────────────┘
                           │
            ┌──────────────▼──────────────┐
            │        Redis Cache          │
-           │  flags:{owner}:{env}:{key}  │
+           │ flags:{project}:{env}:{key} │
            │  TTL: 300s (configurable)   │
            └──────────────┬──────────────┘
                           │ cache miss
                  ┌────────▼────────┐
                  │   PostgreSQL    │
+                 │  orgs · projects│
                  │  flags · rules  │
+                 │  segments       │
                  │  environments   │
-                 │  sdk_keys       │
                  │  audit · eval   │
                  └────────┬────────┘
                           │
@@ -49,75 +50,125 @@ This is a personal project, not a hosted service. See [Known gaps](#known-gaps) 
                  └─────────────────┘
 ```
 
+### The tenancy model
+
+```text
+Organization ── Membership(user, role) ── owner | admin | member | viewer
+     │
+     └── Project ──┬── FeatureFlag ──┬── Variation
+                   │                 ├── FlagTarget        (individual users)
+                   │                 ├── Rule              (targeting rules)
+                   │                 └── FlagPrerequisite  (gates)
+                   ├── Segment ──────┬── SegmentTarget
+                   │                 └── SegmentRule
+                   └── Environment ──┬── EnvironmentFlag   (per-env state)
+                                     └── SDKKey
+```
+
+A project is the tenancy boundary. Flag keys are unique per project, so two teams can both own a `dark-mode` flag. A project you are not a member of is invisible — it returns `404`, not `403`.
+
 ### Evaluation algorithm
 
-1. **Cache lookup** — resolve `flags:{owner_id}:{env_id}:{flag_key}` from Redis. On miss, query PostgreSQL and warm the cache.
-2. **Kill switch** — if the environment's `is_enabled` is false, return `off_variation`.
-3. **Targeting rules** — evaluate in `priority` order. First match serves the rule's `serve_variation` if set, otherwise `fallthrough_variation`.
-4. **Percentage rollout** — `SHA-256(flag_key + user_id) % 100 < rollout_percentage`. Deterministic: the same user always lands in the same bucket. In the bucket serves `fallthrough_variation`, outside serves `off_variation`.
+Order matters, and each step short-circuits:
 
-Every result carries a `result` value (boolean, string, number, or JSON object) and a `result_type`. Cache keys are scoped to `(owner_id, env_id, flag_key)`, so each environment has independent cached state.
+1. **Cache lookup** — resolve `flags:{project_id}:{env_id}:{flag_key}` from Redis. On miss, query PostgreSQL and warm the cache.
+2. **Kill switch** — if the environment's `is_enabled` is false, serve `off_variation`. Nothing below can override this.
+3. **Prerequisites** — every gate must be satisfied: each prerequisite flag must resolve, for this same user, to the required variation. Any unmet gate serves `off_variation`.
+4. **Individual targets** — if this `user_id` is pinned to a variation on this flag, serve it.
+5. **Targeting rules** — evaluated in `priority` order. The first matching rule wins outright. A rule may test attributes directly or segment membership (`in_segment` / `not_in_segment`), and may carry its own `rollout_percentage` — matched users outside that slice get `off_variation` rather than falling through to a later rule.
+6. **Percentage rollout** — `SHA-256(flag_key + user_id) % 100 < rollout_percentage`. Deterministic: the same user always lands in the same bucket. In the bucket serves `fallthrough_variation`, outside serves `off_variation`.
+
+Every result carries a `result` value (boolean, string, number, or JSON object) and a `result_type`.
+
+**Uncertainty fails closed.** A prerequisite that cannot be resolved — archived, missing from this environment, or part of a cycle — leaves the dependent flag off. An unresolvable segment reference matches nobody, whichever operator names it.
 
 ---
 
 ## Features
 
+### Organizations, projects & RBAC
+
+- **Hierarchy** — organizations contain projects; projects contain flags, environments, and segments.
+- **Roles** — `owner`, `admin`, `member`, `viewer`, ranked. Writes to flags, environments, rules, segments, and SDK keys require `member` or above; managing members and projects requires `admin`; deleting an organization requires `owner`.
+- **Invisible, not forbidden** — a project you are not a member of returns `404`. A member without sufficient role gets `403`.
+- **Last owner protection** — an organization must always keep at least one owner.
+
 ### Core flag engine
 
-- **Flag CRUD** — flags identified by a human-readable `key` (e.g. `dark-mode`).
+- **Flag CRUD** — flags identified by a human-readable `key` (e.g. `dark-mode`), unique per project. The key is fixed at creation: it addresses SDK calls, cache entries, and every version snapshot, so changing it would break live integrations.
 - **Percentage rollout** — SHA-256 deterministic bucket assignment.
-- **Rule-based targeting** — ordered rules with operators `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`.
-- **Redis caching** — flag config and rules cached per `(owner, environment, key)`, invalidated on flag mutations, variation mutations, rule mutations, and environment flag state changes.
+- **Rule-based targeting** — ordered rules with operators `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`, `in_segment`, `not_in_segment`.
+- **Redis caching** — flag config, rules, targets, segments, and prerequisites cached per `(project, environment, key)`, invalidated on every mutation that could change an answer.
 - **One-call toggle** — `POST /flags/{key}/toggle/` with `{"environment": "production"}` flips that environment's kill switch, invalidates the cache, and writes an audit entry. The per-environment state is created on first toggle (off by default, so the first call turns the flag on).
+
+### Individual user targeting
+
+- **Pin a user to a variation** — `FlagTarget` overrides targeting rules and the percentage rollout for one named user. Targeting the `true`/fallthrough variation is an allowlist; the `false`/off variation is a denylist.
+- **Not above the kill switch** — a flag that is off serves the off variation to everyone, targets included. That is what makes the kill switch safe to reach for during an incident.
+- **Idempotent writes** — `PUT` returns `201` the first time a user is targeted and `200` when moving them to a different variation, so a dashboard can push desired state blindly.
+
+### Reusable segments
+
+- **Define a group once** — a segment names a set of users that many flags can target, instead of the same condition copy-pasted onto every flag.
+- **Membership** — explicit includes and excludes, plus attribute rules. Resolution order is excluded → included → any rule matching. Exclusion wins over everything, which makes it a reliable way to carve one account out of an otherwise rule-defined group.
+- **Empty means nobody** — an unconfigured segment matches no one, never everyone.
+- **Referenced by rules** — a flag rule uses `in_segment` / `not_in_segment` with the segment key as its value. Segments do not nest.
+- **Safe to change** — editing a segment evicts the cache of every flag referencing it, so a membership change takes effect immediately rather than after the TTL. Deleting a segment a rule still references returns `409`.
+
+### Prerequisite flags
+
+- **Gate a flag behind another** — a flag evaluates normally only while its prerequisite serves a required variation for the same user, expressing feature dependency without duplicating the upstream flag's targeting.
+- **Compared by variation identity** — not by value, since two variations of a flag may carry the same value.
+- **Cycles rejected** — a graph walk at write time refuses any gate that would close a loop and reports the path; evaluation additionally carries the resolution chain and a depth cap, so even a cycle written directly to the database fails closed instead of recursing.
+- **Dependents protected** — deleting or archiving a flag that gates another returns `409`, since letting it through would silently switch every dependent off.
 
 ### Multivariate flags
 
 - **Flag types** — every flag is `boolean` (default) or `multivariate`. Boolean flags automatically get `true`/`false` variations on creation.
 - **Variation model** — each variation has a `name`, a `value_type` (`boolean`, `string`, `number`, `json`), and a `value` stored as a `JSONField`.
-- **Off / fallthrough wiring** — `off_variation` is served when a flag is disabled, `fallthrough_variation` when a user lands in the rollout bucket. Both set via `PATCH /api/v1/flags/{key}/`.
-- **Rule-level targeting** — a rule can specify a `serve_variation` returned instead of the fallthrough when it matches.
+- **Off / fallthrough wiring** — `off_variation` is served when a flag is disabled, `fallthrough_variation` when a user lands in the rollout bucket.
 - **Typed responses** — the evaluate endpoint returns `result` and `result_type` so clients know how to handle the payload.
 - **Backwards compatible** — if no variation is configured, the engine falls back to `true`/`false` booleans.
 
 ### Flag lifecycle
 
-- **Archive / soft-delete** — `POST /api/v1/flags/{key}/archive/` soft-deletes without destroying history. Archived flags are excluded from list responses unless you pass `?include_archived=true`.
-- **Unarchive** — `POST /api/v1/flags/{key}/unarchive/` restores. Mutations on an archived flag return `409 Conflict`.
+- **Archive / soft-delete** — `POST /flags/{key}/archive/` soft-deletes without destroying history. Archived flags are excluded from list responses unless you pass `?include_archived=true`.
+- **Unarchive** — `POST /flags/{key}/unarchive/` restores. Mutations on an archived flag return `409 Conflict`.
 - **Evaluation guard** — archived flags return `404` from the SDK evaluate endpoint.
-- **Audited** — archive and unarchive both write an `AuditLog` entry.
 
 ### Version history & rollback
 
-- **Automatic snapshots** — every flag create and config update appends an immutable `FlagVersion` capturing the restorable config (`name`, `description`, `is_enabled`, `rollout_percentage`, `flag_type`, and the off/fallthrough variation references).
-- **History** — `GET /api/v1/flags/{key}/versions/` lists versions newest-first; `GET /api/v1/flags/{key}/versions/{n}/` returns a single snapshot with who changed it and when.
-- **One-click rollback** — `POST /api/v1/flags/{key}/versions/{n}/rollback/` restores that snapshot onto the live flag. Rollback is append-only: it writes a new `rollback` version (recording the `source_version_no`) rather than rewriting history, invalidates every environment's cache, and writes an `AuditLog` entry.
-- **Safe restores** — variation references that no longer exist are dropped to `null` on rollback rather than left dangling; rolling back an archived flag returns `409 Conflict`.
+- **Automatic snapshots** — every flag create and config update appends an immutable `FlagVersion` capturing the restorable config.
+- **History** — `GET /flags/{key}/versions/` lists versions newest-first; `GET .../versions/{n}/` returns a single snapshot with who changed it and when.
+- **One-click rollback** — `POST /flags/{key}/versions/{n}/rollback/` restores that snapshot onto the live flag. Rollback is append-only: it writes a new `rollback` version recording the `source_version_no` rather than rewriting history.
+- **Safe restores** — variation references that no longer exist are dropped to `null` rather than left dangling; rolling back an archived flag returns `409`.
 
 ### Multi-environment
 
-- **Environment model** — named environments (`development`, `staging`, `production`) owned by a user. Deleting one cascades to its SDK keys and per-environment flag states.
-- **Per-environment state** — `EnvironmentFlag` links a flag to an environment with independent `is_enabled` and `rollout_percentage`. Update via `PATCH /api/v1/environments/{id}/flags/{flag_id}/`.
+- **Environment model** — named environments (`development`, `staging`, `production`) belonging to a project. Deleting one cascades to its SDK keys and per-environment flag states.
+- **Per-environment state** — `EnvironmentFlag` links a flag to an environment with independent `is_enabled` and `rollout_percentage`.
 - **Environment-scoped cache** — cache keys include `env_id`, so toggling a flag in staging does not invalidate the production cache.
 
 ### SDK keys
 
 - **Opaque tokens** — server (`sdk_srv_`) and client (`sdk_cli_`) types, each scoped to one environment.
 - **Hashed at rest** — the raw key is returned once on creation and never stored. Only a SHA-256 hash is persisted; the 16-char prefix is kept for display.
-- **Rotation** — `POST /api/v1/sdk-keys/{id}/rotate/` revokes the old key and issues a replacement in one request.
-- **Revocation** — `POST /api/v1/sdk-keys/{id}/revoke/` deactivates immediately. Double-revoke returns `409 Conflict`.
+- **The key is the principal** — SDK requests authenticate as the key itself, not as a user. The environment and project are derived from it, so callers never pass `env_id`.
+- **Rotation** — `POST /sdk-keys/{id}/rotate/` revokes the old key and issues a replacement in one request.
+- **Revocation** — `POST /sdk-keys/{id}/revoke/` deactivates immediately. Double-revoke returns `409`.
 - **Last-used tracking** — `last_used_at` updated on every authenticated SDK request.
 
 ### Security & auth
 
 - **JWT authentication** — Bearer token auth on dashboard endpoints. `POST /api/v1/auth/token/` to obtain, `/refresh/` to rotate.
-- **SDK key authentication** — `SDKKeyAuthentication` validates the `X-SDK-Key` header against the stored hash. The environment is derived from the key, so callers never pass `env_id`.
-- **Ownership scoping** — dashboard querysets are filtered to `request.user`, and services assert ownership before mutating.
-- **Cross-user rule assignment prevention** — `RuleSerializer.validate_flag()` blocks attaching a rule to another user's flag.
+- **SDK key authentication** — `SDKKeyAuthentication` validates the `X-SDK-Key` header against the stored hash.
+- **Membership scoping** — every dashboard queryset is filtered by project membership, and services assert role before mutating.
+- **Three-layer numeric validation** — `rollout_percentage` (flag and rule) is enforced at the serializer, the model validator, and a PostgreSQL `CheckConstraint`.
 - **Rate limiting** — the evaluate endpoint has a dedicated `ScopedRateThrottle` (default 1,000/min, configurable).
 
 ### Observability & audit
 
-- **Audit trail** — every flag create/update/delete/archive/unarchive and every environment toggle writes an `AuditLog` row with `old_value`/`new_value` JSON snapshots via a central `AuditService`. Variation mutations are not currently audited.
+- **Audit trail** — flag, variation, environment, segment, target, and prerequisite mutations write an `AuditLog` row with `old_value`/`new_value` JSON snapshots via a central `AuditService`. Rule, SDK key, and organization mutations are not yet audited.
 - **Evaluation logging** — every SDK evaluation is written to `EvaluationLog` by a Celery task, so the HTTP response returns without waiting on the DB write.
 - **Read-only audit API** — `GET /api/v1/audit/`.
 
@@ -134,49 +185,91 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 
 Import the [Postman collection](feature_flags.postman_collection.json) to explore every endpoint with example bodies.
 
+Flags, environments, and segments are addressed under their project.
+
 ```text
-POST   /api/v1/auth/token/                          Obtain access + refresh token
-POST   /api/v1/auth/token/refresh/                  Rotate access token
+POST   /api/v1/auth/token/                           Obtain access + refresh token
+POST   /api/v1/auth/token/refresh/                   Rotate access token
 
-GET    /api/v1/flags/                               List flags (add ?include_archived=true to include archived)
-POST   /api/v1/flags/                               Create a flag
-GET    /api/v1/flags/{key}/                         Retrieve a flag
-PATCH  /api/v1/flags/{key}/                         Update a flag (409 if archived)
-DELETE /api/v1/flags/{key}/                         Delete a flag
-POST   /api/v1/flags/{key}/toggle/                  Flip one environment's kill switch
-POST   /api/v1/flags/{key}/archive/                 Archive a flag
-POST   /api/v1/flags/{key}/unarchive/               Unarchive a flag
-GET    /api/v1/flags/{key}/variations/              List variations
-POST   /api/v1/flags/{key}/variations/              Create a variation
-PATCH  /api/v1/flags/{key}/variations/{id}/         Update a variation
-DELETE /api/v1/flags/{key}/variations/{id}/         Delete a variation
+GET    /api/v1/organizations/                        List your organizations
+POST   /api/v1/organizations/                        Create an organization
+GET    /api/v1/organizations/{slug}/                 Retrieve an organization
+DELETE /api/v1/organizations/{slug}/                 Delete (owner only)
+GET    /api/v1/organizations/{slug}/members/         List members
+POST   /api/v1/organizations/{slug}/members/         Add a member (admin+)
+PATCH  /api/v1/organizations/{slug}/members/{user}/  Change a member's role (admin+)
+DELETE /api/v1/organizations/{slug}/members/{user}/  Remove a member (admin+)
 
-GET    /api/v1/rules/                               List rules for your flags
-POST   /api/v1/rules/                               Create a rule
-GET    /api/v1/rules/{id}/                          Retrieve a rule
-PATCH  /api/v1/rules/{id}/                          Update a rule
-DELETE /api/v1/rules/{id}/                          Delete a rule
+GET    /api/v1/projects/                             List projects you can see
+POST   /api/v1/projects/                             Create a project (admin+)
+GET    /api/v1/projects/{key}/                       Retrieve a project
+DELETE /api/v1/projects/{key}/                       Delete a project (admin+)
 
-GET    /api/v1/environments/                        List environments
-POST   /api/v1/environments/                        Create an environment
-GET    /api/v1/environments/{id}/                   Retrieve an environment
-DELETE /api/v1/environments/{id}/                   Delete (cascades keys + flag states)
-GET    /api/v1/environments/{id}/flags/             List per-environment flag states
-PATCH  /api/v1/environments/{id}/flags/{flag_id}/   Update flag state for this environment
+GET    /api/v1/projects/{pk}/flags/                  List flags (?include_archived=true)
+POST   /api/v1/projects/{pk}/flags/                  Create a flag
+GET    /api/v1/projects/{pk}/flags/{key}/            Retrieve a flag
+PATCH  /api/v1/projects/{pk}/flags/{key}/            Update a flag (409 if archived)
+DELETE /api/v1/projects/{pk}/flags/{key}/            Delete a flag
+POST   /api/v1/projects/{pk}/flags/{key}/toggle/     Flip one environment's kill switch
+POST   /api/v1/projects/{pk}/flags/{key}/archive/    Archive a flag
+POST   /api/v1/projects/{pk}/flags/{key}/unarchive/  Unarchive a flag
 
-POST   /api/v1/sdk-keys/                            Create (returns full key once)
-GET    /api/v1/sdk-keys/                            List (prefix only)
-GET    /api/v1/sdk-keys/{id}/                       Retrieve a key
-POST   /api/v1/sdk-keys/{id}/revoke/                Deactivate a key
-POST   /api/v1/sdk-keys/{id}/rotate/                Revoke + issue replacement
+GET    .../flags/{key}/variations/                   List variations
+POST   .../flags/{key}/variations/                   Create a variation
+PATCH  .../flags/{key}/variations/{id}/              Update a variation
+DELETE .../flags/{key}/variations/{id}/              Delete a variation
 
-POST   /api/v1/sdk/evaluate/                        Evaluate a flag (SDK key auth)
+GET    .../flags/{key}/targets/                      List individual user targets
+PUT    .../flags/{key}/targets/                      Pin a user to a variation (upsert)
+DELETE .../flags/{key}/targets/{user_key}/           Remove a target
 
-GET    /api/v1/evaluation/logs/                     List past evaluation logs
-GET    /api/v1/audit/                               List audit log entries
-GET    /api/v1/audit/{id}/                          Retrieve a single audit entry
+GET    .../flags/{key}/prerequisites/                List prerequisite gates
+PUT    .../flags/{key}/prerequisites/                Add or update a gate (upsert)
+DELETE .../flags/{key}/prerequisites/{flag_key}/     Remove a gate
 
-GET    /healthz/                                    Database + Redis liveness probe (no auth)
+GET    .../flags/{key}/versions/                     List versions (newest first)
+GET    .../flags/{key}/versions/{n}/                 Retrieve one snapshot
+POST   .../flags/{key}/versions/{n}/rollback/        Restore that snapshot
+
+GET    /api/v1/projects/{pk}/segments/               List segments
+POST   /api/v1/projects/{pk}/segments/               Create a segment
+GET    /api/v1/projects/{pk}/segments/{key}/         Retrieve a segment
+PATCH  /api/v1/projects/{pk}/segments/{key}/         Update name/description
+DELETE /api/v1/projects/{pk}/segments/{key}/         Delete (409 if referenced)
+GET    .../segments/{key}/targets/                   List named members
+PUT    .../segments/{key}/targets/                   Include or exclude a user (upsert)
+DELETE .../segments/{key}/targets/{user_key}/        Remove a named member
+GET    .../segments/{key}/rules/                     List attribute rules
+POST   .../segments/{key}/rules/                     Add an attribute rule
+PATCH  .../segments/{key}/rules/{id}/                Update a rule
+DELETE .../segments/{key}/rules/{id}/                Delete a rule
+
+GET    /api/v1/rules/                                List targeting rules
+POST   /api/v1/rules/                                Create a targeting rule
+GET    /api/v1/rules/{id}/                           Retrieve a rule
+PATCH  /api/v1/rules/{id}/                           Update a rule
+DELETE /api/v1/rules/{id}/                           Delete a rule
+
+GET    /api/v1/projects/{pk}/environments/           List environments
+POST   /api/v1/projects/{pk}/environments/           Create an environment
+GET    /api/v1/projects/{pk}/environments/{id}/      Retrieve an environment
+DELETE /api/v1/projects/{pk}/environments/{id}/      Delete (cascades keys + states)
+GET    .../environments/{id}/flags/                  List per-environment flag states
+PATCH  .../environments/{id}/flags/{flag_id}/        Update flag state for this env
+
+POST   /api/v1/sdk-keys/                             Create (returns full key once)
+GET    /api/v1/sdk-keys/                             List (prefix only)
+GET    /api/v1/sdk-keys/{id}/                        Retrieve a key
+POST   /api/v1/sdk-keys/{id}/revoke/                 Deactivate a key
+POST   /api/v1/sdk-keys/{id}/rotate/                 Revoke + issue replacement
+
+POST   /api/v1/sdk/evaluate/                         Evaluate a flag (SDK key auth)
+
+GET    /api/v1/evaluation/logs/                      List past evaluation logs
+GET    /api/v1/audit/                                List audit log entries
+GET    /api/v1/audit/{id}/                           Retrieve a single audit entry
+
+GET    /healthz/                                     Database + Redis liveness probe (no auth)
 ```
 
 ### SDK evaluate
@@ -190,6 +283,8 @@ Header: `X-SDK-Key: sdk_srv_<token>`
 }
 ```
 
+`user_id` is the identity used for individual targeting, segment membership, and rollout bucketing. Every other key is available to targeting rules as an attribute.
+
 Response — `result` carries the variation value directly, `result_type` is one of `boolean`, `string`, `number`, `json`:
 
 ```json
@@ -199,6 +294,30 @@ Response — `result` carries the variation value directly, `result_type` is one
   "result_type": "string",
   "environment": "production"
 }
+```
+
+### Targeting examples
+
+Pin one user into a flag regardless of rules or rollout:
+
+```http
+PUT /api/v1/projects/web/flags/new-checkout/targets/
+{ "user_key": "u_123", "variation": 42 }
+```
+
+Roll a flag out to 20% of a segment:
+
+```http
+POST /api/v1/rules/
+{ "flag": 7, "operator": "in_segment", "value": "beta-testers",
+  "priority": 1, "serve_variation": 42, "rollout_percentage": 20 }
+```
+
+Gate a flag behind another flag:
+
+```http
+PUT /api/v1/projects/web/flags/new-checkout/prerequisites/
+{ "prerequisite_key": "new-cart", "variation_id": 17 }
 ```
 
 ---
@@ -222,6 +341,8 @@ docker compose exec web python manage.py createsuperuser
 
 The `migrate` step is required — `docker compose up` does not run migrations.
 
+There is no self-serve signup endpoint yet, so the first user comes from `createsuperuser`. Existing users are given a personal organization and a default project by migration, and new organizations are created through the API.
+
 Compose publishes host ports **8000** (web), **5434** (PostgreSQL) and **6379** (Redis). If something already owns 6379 or 8000 locally, the stack will not start until you free the port or change the mapping.
 
 | Service | Port | Description |
@@ -238,7 +359,7 @@ Compose publishes host ports **8000** (web), **5434** (PostgreSQL) and **6379** 
 docker compose run --rm web pytest
 ```
 
-143 tests. The same command runs in CI on every push and PR to `main`.
+359 tests. The same command runs in CI on every push and PR to `main`.
 
 ---
 
@@ -249,27 +370,33 @@ feature_flags/
 ├── apps/
 │   ├── accounts/       Custom User model + JWT auth URLs
 │   ├── audit/          AuditLog model, AuditService, read-only API
-│   ├── core/           BaseModel, shared exceptions, /healthz view
+│   ├── core/           BaseModel, error catalogue, /healthz view
 │   ├── environment/    Environment + EnvironmentFlag models, per-env state API
 │   ├── evaluation/     FlagEvaluationService, EvaluationLog, Celery task
-│   ├── flags/          FeatureFlag model, FlagService, CRUD + archive API
-│   ├── rules/          Rule model, CRUD API
+│   ├── flags/          FeatureFlag, Variation, FlagTarget, FlagPrerequisite, FlagVersion
+│   ├── organizations/  Organization, Membership, Project, AccessService (RBAC)
+│   ├── rules/          Rule model + targeting rule API
 │   ├── sdk/            SDK evaluate endpoint (X-SDK-Key auth)
 │   ├── sdk_keys/       SDKKey model, KeyGenerator, management API
+│   ├── segments/       Segment, SegmentTarget, SegmentRule, SegmentEvaluator
 │   └── targeting/      Operator matching logic (RuleEvaluator)
-├── config/             settings.py · urls.py · celery.py
+├── config/             settings.py · urls.py · celery.py · exception_handler.py
 ├── conftest.py         Shared pytest factories and fixtures
 ├── docker-compose.yml
 └── requirements.txt
 ```
 
+Every app follows the same four layers: **view** (HTTP only), **serializer** (field shape only), **service** (`*Service`, business logic), and **query** (`queries.py`, the only place with ORM access).
+
 ---
 
 ## Known gaps
 
+- **No self-serve registration.** There is no `POST /api/v1/auth/register/`; users are created via `createsuperuser` or the admin.
 - **Compose stores no data.** Neither `db` nor `redis` declares a volume, so `docker compose down` destroys the database. Fine for local development; not usable as-is for a real deployment.
-- **Flag keys are globally unique.** `FeatureFlag.key` carries a database-wide `UNIQUE` constraint, so if one user creates `dark-mode`, no other user can. The `unique_flag_per_owner` constraint intended to replace it is declared on the model but has never been migrated.
-- **Model/migration drift.** `manage.py makemigrations` reports pending changes on `environment`, `flags`, `rules`, and `sdk_keys` that no migration covers.
+- **Partial audit coverage.** Flag, variation, environment, segment, target, and prerequisite mutations are audited. Rule, SDK key, and organization mutations are not.
+- **Model/migration drift.** `manage.py makemigrations --check` still reports pending `Alter field id` changes on `evaluation` and `sdk_keys`.
+- **Prerequisite chains cost a cache read each.** One SDK evaluation resolves one cached entry per flag in the chain. No DB queries, but not free for deep chains.
 - **No benchmarks.** Nothing in this repo measures throughput, latency, or cache hit rate. Any performance characteristics are unmeasured.
 - **No OpenAPI schema.** Use the Postman collection.
 
@@ -277,11 +404,32 @@ feature_flags/
 
 ## Design decisions
 
+**Why is a project the tenancy boundary rather than a user?**
+Flags belong to teams, not individuals. Scoping by project lets several people share the same flags with different permissions, and makes flag keys unique per project instead of globally — so two teams can both own a `dark-mode` flag.
+
+**Why does "not mine" return 404 instead of 403?**
+A `403` confirms the resource exists. For a multi-tenant API, that leaks the existence of other teams' projects and flag keys, so anything you are not a member of is simply invisible.
+
+**Why do individual targets not override the kill switch?**
+The kill switch is what you reach for during an incident. If any targeting layer could override it, turning a flag off would no longer be a reliable way to stop it, so nothing sits above it.
+
+**Why are prerequisites checked before individual targeting?**
+Otherwise pinning a user to a flag would be a way to bypass a dependency, and the flag could serve to someone whose upstream feature is off.
+
+**Why does an unresolvable reference never match?**
+Inverting an unknown is the dangerous direction: a `not_in_segment` rule or an unmet prerequisite that "matched" on failure would turn a dangling reference into a full rollout. Uncertainty resolves to off, always.
+
+**Why is rule-level bucketing salted with the rule id?**
+Without a salt, two rules at the same percentage would hash identically and select exactly the same users, so a second 20% rollout would reach the same 20% of people. The flag-level rollout deliberately uses no salt — that hash decides who already has a flag, and changing its inputs would re-bucket everyone.
+
+**Why do segments not nest?**
+A segment referencing another segment would need recursive membership resolution and cycle detection of its own. Forbidding it keeps membership a single pass, and the flag-level prerequisite graph already covers dependency between features.
+
 **Why SHA-256 for rollout bucketing?**
 `SHA-256(flag_key + user_id) % 100` is deterministic, so the same user always lands in the same bucket for a given flag, and it is trivial to reimplement in any SDK language. LaunchDarkly uses MurmurHash3; SHA-256 is slower but available in every standard library.
 
 **Why SHA-256 for SDK key storage?**
-SDK keys are long-lived credentials, so storing raw values would turn any database breach into a full key compromise. Only the hash is persisted, and lookup is a single indexed query on the hash rather than an iteration over candidates. The stored 16-char prefix lets a user identify a key without exposing the secret.
+SDK keys are long-lived credentials, so storing raw values would turn any database breach into a full key compromise. Only the hash is persisted, and lookup is a single indexed query on the hash. The stored 16-char prefix lets a user identify a key without exposing the secret.
 
 **Why soft-delete (archive) instead of hard-delete?**
 Hard-deleting a flag destroys its audit history, evaluation logs, and rule configuration. Archiving preserves all of it while removing the flag from evaluation and list responses.
@@ -289,11 +437,11 @@ Hard-deleting a flag destroys its audit history, evaluation logs, and rule confi
 **Why async evaluation logging?**
 Writing an `EvaluationLog` row synchronously puts a DB write in the hot path of every flag check. Celery decouples the two: the HTTP response returns immediately and the write happens in a worker with retries. The trade-off is that a failed write is invisible to the caller.
 
-**Why is the cache scoped to `(owner_id, env_id, flag_key)`?**
+**Why is the cache scoped to `(project_id, env_id, flag_key)`?**
 Scoping by environment means toggling a flag in staging does not evict production's cached copy, so staging activity cannot cause production cache misses.
 
-**Why is the cache invalidated on rule changes too?**
-The cached payload embeds the flag's rules, so a rule write makes it stale. Rule mutations therefore call `FlagService.invalidate_flag_caches()`, which evicts the flag's cached copy in every environment it has state in.
+**Why is the cache invalidated on rule and segment changes too?**
+The cached payload embeds the flag's rules, targets, prerequisites, and the segments its rules reference, so any of those writes makes it stale. Segment edits fan out to every flag referencing that segment in a single bulk query.
 
 **Why are variation values stored in a JSONField?**
 A variation must hold a boolean, string, number, or arbitrary JSON object. `JSONField` covers all four without a column per type, and `value_type` records which one is stored so clients can deserialise it.
@@ -305,14 +453,24 @@ A variation must hold a boolean, string, number, or arbitrary JSON object. `JSON
 
 ## Roadmap
 
-Nothing below is built.
+**Built** — Phase 1 (foundational data model) and Phase 2 (targeting):
 
-- **Targeting** — individual user targeting, reusable segments, prerequisite flags, rule-level rollout within a segment.
+- Flag CRUD, multivariate flags, archive/soft-delete, per-environment state and toggle
+- Version history with one-click rollback
+- SDK key management with rotation
+- Organizations, projects, and role-based access
+- Individual user targeting
+- Reusable segments
+- Rule-level percentage rollout
+- Prerequisite flags
+
+**Not built:**
+
 - **SDK infrastructure** — bulk flag download, impression batching, SSE streaming of flag updates.
 - **Workflow** — stale flag detection, scheduled changes, webhooks, approval workflows.
 - **Analytics** — impression aggregation, data export.
 - **Experimentation** — A/B testing framework, statistical significance reporting.
-- **Enterprise** — projects/organizations, RBAC, SSO and SCIM.
+- **Enterprise** — SSO and SCIM provisioning.
 
 ---
 
