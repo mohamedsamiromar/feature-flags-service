@@ -88,7 +88,7 @@ The **project** is the tenancy boundary, not the user. Roles are `viewer < membe
 | `apps.audit` | `AuditLog` model, `AuditService`, read-only API |
 | `apps.environment` | `Environment` + `EnvironmentFlag` models, per-env state API |
 | `apps.sdk_keys` | `SDKKey` model, `KeyGenerator`, `SDKKeyAuthentication`, management API |
-| `apps.sdk` | SDK evaluate endpoint (authenticated via `X-SDK-Key`) |
+| `apps.sdk` | SDK endpoints (authenticated via `X-SDK-Key`): per-flag evaluate and bulk download |
 
 ---
 
@@ -177,7 +177,29 @@ Rule-level rollout is salted with the rule id so two rules at the same percentag
 
 ### Celery boundary
 
-`CELERY_TASK_SERIALIZER = "json"` and the cached flag config contains Python `set`s (segment membership). **Never pass `flag_data` or a segment payload to a Celery task** — pass evaluated results and scalars.
+`CELERY_TASK_SERIALIZER = "json"` and the cached flag config contains Python `set`s (segment membership). **Never pass `flag_data` or a segment payload to a Celery task** — pass evaluated results and scalars. `log_evaluations` (the batching endpoint's ingest primitive) takes `[{flag_id, result}, ...]` plus one shared `context_data`; keep that list to scalars and JSON values. The client bootstrap endpoint dispatches **no** task at all — see below.
+
+### Bulk evaluation
+
+`FlagEvaluationService.evaluate_all` (behind `POST /sdk/flags/evaluate/`) resolves an entire environment in a fixed number of round trips. Three things keep it that way — each has a test that fails if you remove it:
+
+- **`_get_flag_data` consults the `preloaded` map before Redis.** `evaluate_all` resolves every flag's payload once and passes it down through `evaluate(_preloaded=...)`, prerequisite recursion included. Without it, one bulk call is N Redis reads.
+- **`_build_rules` uses `sorted(flag.rules.all(), ...)`, never `.order_by()`.** `order_by` builds a new queryset and discards the `rules__serve_variation` prefetch, costing a query for the rules plus one per rule — on *both* the single and bulk paths.
+- **Segments for all cache misses resolve in ONE `SegmentQuery.evaluation_payload` call**, then get sliced per flag. Each cached entry still carries only the segments its own rules name, so a bulk warm writes the same payload a single evaluation would.
+
+Both paths share `_build_flag_data`, so they can never write differently shaped cache entries. If you add a field to the cached payload, add it there and nowhere else.
+
+The one query a warm bulk call cannot avoid is `EvaluationQuery.active_flag_keys` — a warm cache knows each flag's config, not which flags exist. Do not "fix" that by caching the key index: a stale index makes a newly created flag invisible for the full TTL.
+
+### Known live bug: `gt` / `lt` on a non-numeric attribute
+
+`RuleEvaluator._evaluate` calls `float(user_value)` with no guard. A `gt`/`lt` rule against a context attribute that is not numeric raises `ValueError`, uncaught, → **500 on `POST /sdk/evaluate/`**. Verified 2026-08-29. Do not write new operators that coerce types without deciding what a failed coercion means; the engine's answer everywhere else is "does not match".
+
+### Impressions are reads, not downloads
+
+`POST /sdk/flags/evaluate/` resolves every flag in an environment and logs **none** of them. A bootstrap is a download; the app may go on to read three of fifty, and writing all fifty to `EvaluationLog` — which has no rollup — records fetches nobody consumed. `POST /sdk/evaluate/` still logs, because it genuinely serves one flag to one caller.
+
+Do not "restore" logging to the bootstrap endpoint. Impressions for those flags belong to the batching endpoint (Phase 3, item 2), where the SDK reports what it actually used. `TestBulkImpressionLogging` fails if a task is dispatched or a row is written.
 
 ### Archived flags
 
@@ -220,6 +242,7 @@ def test_flag_create(auth_client, base):
 9. A flag's `key` and a segment's `key` are immutable after creation — they are referenced by SDK calls, cache entries, version snapshots, and targeting rules.
 10. Segments do not nest; `SegmentRule` forbids the segment operators.
 11. Deleting a referenced segment (409) or a flag that gates another (409) is refused rather than left dangling.
+12. Bulk evaluation is the same engine as per-flag evaluation, not a second implementation — it calls `evaluate` and shares `_build_flag_data`.
 
 ---
 
@@ -227,7 +250,7 @@ def test_flag_create(auth_client, base):
 
 All configuration comes from `.env` (see `.env.example`). No hardcoded secrets anywhere.
 
-Key variables: `SECRET_KEY`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `REDIS_URL`, `FLAG_CACHE_TTL`, `THROTTLE_RATE_EVALUATION`.
+Key variables: `SECRET_KEY`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `REDIS_URL`, `FLAG_CACHE_TTL`, `THROTTLE_RATE_EVALUATION`, `THROTTLE_RATE_EVALUATION_BULK`.
 
 ---
 
@@ -237,10 +260,13 @@ See `README.md` → Roadmap and `PROJECT_GUIDE.md` §8 for the full checklist.
 
 **Complete:** Phase 1 (data model, multi-tenancy) and Phase 2 (targeting — individual targeting, segments, rule-level rollout, prerequisites).
 
-**Active next items (Phase 3 — SDK infrastructure):**
+**Phase 3 (SDK infrastructure) — in progress:**
 
-- Impression batching endpoint (bulk eval-log ingest)
-- Server-side SDK bulk download (`GET /sdk/flags/`)
+- ✅ SDK client bootstrap — `POST /sdk/flags/evaluate/` (one user context, every flag)
+- SDK config download — `GET /sdk/flags/config/` (raw ruleset for server-side SDKs). See `SDK_CONFIG_SPEC.md`
+- Impression batching endpoint (bulk eval-log ingest from an SDK)
 - SSE streaming of flag updates
+
+**The two bulk endpoints are not alternatives.** The bootstrap endpoint costs one round trip per *user context* — right for a browser SDK (one user per session), wrong for a server-side SDK evaluating thousands of users per process. That is what the config download is for.
 
 **Known gap worth closing first:** there is no `POST /api/v1/auth/register/`. It should also provision a personal organization and default project, mirroring `organizations/0002_backfill_personal_orgs`.

@@ -128,7 +128,7 @@ declared status. Views need no `try/except`.
 | `targeting` | `RuleEvaluator` — operator-matching *logic* | No |
 | `environment` | `Environment` + `EnvironmentFlag`, per-env state API | Yes |
 | `sdk_keys` | `SDKKey` model, key generation/hashing, SDK auth class | Yes |
-| `sdk` | The single `POST /sdk/evaluate/` endpoint | Yes |
+| `sdk` | The SDK-facing endpoints: `POST /sdk/evaluate/` (one flag) and `POST /sdk/flags/evaluate/` (bulk download) | Yes |
 | `evaluation` | `FlagEvaluationService` (the algorithm), `EvaluationLog`, Celery task | Yes (read logs) |
 | `audit` | `AuditLog` model, `AuditService`, read-only audit API | Yes (read audit) |
 
@@ -339,14 +339,33 @@ The targeting *configuration* API. Querysets are scoped by project membership.
 | `POST /sdk-keys/{id}/revoke/` | Deactivate immediately. Double-revoke → 409. | `SDKKeyService.revoke` |
 | `POST /sdk-keys/{id}/rotate/` | Atomically revoke and issue a replacement, returning the new key once — rotate without a window where no key works. | `SDKKeyService.rotate` |
 
-### 5.8 SDK evaluate — `/api/v1/sdk/evaluate/`
+### 5.8 SDK — `/api/v1/sdk/`
 
-The product's whole reason to exist. `SDKEvaluateFlagView`, authenticated by
-`SDKKeyAuthentication`, throttled by a dedicated `ScopedRateThrottle` (default 1000/min).
+The product's whole reason to exist. Both endpoints authenticate with
+`SDKKeyAuthentication` and carry their own `ScopedRateThrottle` scope.
 
 | Endpoint | Why / idea | Services & models |
 | --- | --- | --- |
-| `POST /sdk/evaluate/` | Answer "what value does *this user* get for *this flag* in *this environment*?" The environment and project are derived from the key itself, so callers never pass `env_id`. Returns typed `{result, result_type}` and fires the impression log asynchronously. Archived/missing flag → 404. | `SDKKeyAuthentication` → `FlagEvaluationService.evaluate` → Redis, `EnvironmentFlag`, `Variation`, `RuleEvaluator`, `SegmentEvaluator`; `log_evaluation.delay(...)` → `EvaluationLog` |
+| `POST /sdk/evaluate/` | Answer "what value does *this user* get for *this flag* in *this environment*?" The environment and project are derived from the key itself, so callers never pass `env_id`. Returns typed `{result, result_type}` and fires the impression log asynchronously. Archived/missing flag → 404. Scope `evaluation`, default 1000/min. | `SDKKeyAuthentication` → `FlagEvaluationService.evaluate` → Redis, `EnvironmentFlag`, `Variation`, `RuleEvaluator`, `SegmentEvaluator`; `log_evaluation.delay(...)` → `EvaluationLog` |
+| `POST /sdk/flags/evaluate/` | Client bootstrap: every flag in the key's environment resolved for one user context, in one call — what an SDK asks for at session start instead of N requests. Returns `{environment, flags: {key: {result, result_type, variation_id}}}`. Archived flags and flags not configured in this environment are omitted, not errors; an empty environment is `200` with `{}`. Scope `evaluation_bulk`, default 120/min, because one call does the work of N. Logs **no** impressions — a bootstrap is a download, not a read. | `SDKKeyAuthentication` → `FlagEvaluationService.evaluate_all` → `EvaluationQuery.active_flag_keys` / `get_active_env_flags`, Redis `get_many`/`set_many`. No Celery dispatch. |
+
+**Why POST for a read?** The user context is an arbitrary nested object.
+Query-string encoding it is lossy for anything but flat strings, and it would put
+user attributes into access logs and proxy caches.
+
+**What bulk evaluation costs.** A fixed number of round trips regardless of flag count:
+one indexed query for the environment's flag keys (unavoidable — a warm cache knows
+each flag's config, not which flags exist), one Redis `get_many`, and on misses only,
+one query for those flags plus one for the union of segments they reference, then a
+single `set_many`. The resolved payloads are passed into each evaluation as
+`_preloaded`, so per-flag evaluation and prerequisite resolution touch neither Redis
+nor the database again. Measured flat at 9 queries for 1 through 50 flags cold, and
+exactly 1 warm; `TestBulkEvaluateCost` pins all of it.
+
+**One engine, not two.** `evaluate_all` calls the same `evaluate` the per-flag endpoint
+does, and `_build_flag_data` is shared by both paths so they can never write differently
+shaped entries into the same cache. `TestBulkAgreesWithSingleEvaluate` parametrises
+every targeting layer over several users and asserts the two endpoints agree flag for flag.
 
 **The evaluation algorithm** (`FlagEvaluationService.evaluate`), in order:
 
@@ -462,11 +481,13 @@ Docker Compose; Postman collection.
 - [x] Rule-level percentage rollout
 - [x] Prerequisite flags
 
-**Phase 3 — real-time SDK infra**
+**Phase 3 — real-time SDK infra** — in progress
 
-- [ ] Impression **batching** endpoint (bulk eval-log ingest)
-- [ ] Server-side SDK **bulk download** (`GET /sdk/flags/`)
-- [ ] **SSE streaming** — push flag updates to connected SDKs
+- [x] SDK **client bootstrap** — `POST /sdk/flags/evaluate/` (one user context, every flag)
+- [ ] SDK **config download** — `GET /sdk/flags/config/` (raw ruleset, server-side SDKs evaluate
+      in-process). Specified in `SDK_CONFIG_SPEC.md`; blocked on the `gt`/`lt` crash in §9.1
+- [ ] Impression **batching** endpoint (bulk eval-log ingest from an SDK)
+- [ ] **SSE streaming** — push flag updates to connected SDKs (builds on `config_version`)
 
 **Phase 4 — workflow & governance**
 
@@ -578,6 +599,7 @@ POST   /api/v1/sdk-keys/{id}/rotate/
 
 # SDK
 POST   /api/v1/sdk/evaluate/                                header: X-SDK-Key
+POST   /api/v1/sdk/flags/evaluate/                          header: X-SDK-Key
 
 # Observability
 GET    /api/v1/evaluation/logs/

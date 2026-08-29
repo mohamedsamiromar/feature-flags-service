@@ -40,3 +40,51 @@ def log_evaluation(*, flag_id: int, user_id: int | None, result: Any, context_da
         result=result,
         context_data=context_data,
     )
+
+
+@shared_task(
+    name="evaluation.log_evaluations",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+    ignore_result=True,
+)
+def log_evaluations(*, evaluations: list, user_id: int | None, context_data: dict) -> None:
+    """
+    Persist a batch of flag evaluations in one insert.
+
+    The ingest primitive for the impression-batching endpoint (Phase 3, item 2),
+    where an SDK reports the flags it actually read. Dispatching
+    `log_evaluation` per flag would queue N tasks and run N inserts for one
+    HTTP request; this takes the whole batch.
+
+    NOT wired to `POST /sdk/flags/evaluate/`. That endpoint resolves every flag
+    in an environment, but a bootstrap is a download, not a read — logging all
+    of them as impressions would inflate `EvaluationLog` with rows nobody
+    consumed. See `SDKEvaluateAllFlagsView`.
+
+    Args:
+        evaluations:  ``[{"flag_id": int, "result": <JSON value>}, ...]``.
+                      Scalars and JSON values only — NEVER the cached flag
+                      config, which contains Python sets that this task's json
+                      serializer cannot encode.
+        user_id:      Primary key of the requesting user (None for SDK calls,
+                      where the key is the principal).
+        context_data: The user_context the batch was evaluated against. One
+                      dict for the batch: every flag in it saw the same
+                      context.
+    """
+    from apps.evaluation.models import EvaluationLog
+
+    if not evaluations:
+        return
+
+    EvaluationLog.objects.bulk_create([
+        EvaluationLog(
+            flag_id=evaluation["flag_id"],
+            user_id=user_id,
+            result=evaluation["result"],
+            context_data=context_data,
+        )
+        for evaluation in evaluations
+    ])

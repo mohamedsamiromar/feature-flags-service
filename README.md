@@ -5,7 +5,7 @@
 
 A self-hosted feature flag backend built with Django and Django REST Framework. Redis-cached flag evaluation, team multi-tenancy with role-based access, individual user targeting, reusable segments, prerequisite flags, environment-scoped state, SDK key authentication, multivariate flags, and an audit trail.
 
-Point an SDK key at `POST /api/v1/sdk/evaluate/` and evaluate flags over HTTP. Python 3.9, Django 4.2, PostgreSQL 15, Redis 7.
+Point an SDK key at `POST /api/v1/sdk/evaluate/` for one flag, or `POST /api/v1/sdk/flags/evaluate/` to pull a whole environment in one call. Python 3.9, Django 4.2, PostgreSQL 15, Redis 7.
 
 This is a personal project, not a hosted service. See [Known gaps](#known-gaps) before relying on it.
 
@@ -23,9 +23,11 @@ This is a personal project, not a hosted service. See [Known gaps](#known-gaps) 
   │  Dashboard API  │             │    SDK API       │
   │  Orgs/Projects  │             │  POST /sdk/      │
   │  Flag CRUD      │             │    evaluate/     │
-  │  Targets        │             │  SDKKeyAuth      │
-  │  Segments       │             └───────┬──────────┘
-  │  SDK Key Mgmt   │                     │
+  │  Targets        │             │  POST /sdk/flags/│
+  │  Segments       │             │    evaluate/     │
+  │  SDK Key Mgmt   │             │  SDKKeyAuth      │
+  │                 │             └───────┬──────────┘
+  │                 │                     │
   └────────┬────────┘                     │
            └──────────────┬───────────────┘
                           │
@@ -164,12 +166,12 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 - **SDK key authentication** — `SDKKeyAuthentication` validates the `X-SDK-Key` header against the stored hash.
 - **Membership scoping** — every dashboard queryset is filtered by project membership, and services assert role before mutating.
 - **Three-layer numeric validation** — `rollout_percentage` (flag and rule) is enforced at the serializer, the model validator, and a PostgreSQL `CheckConstraint`.
-- **Rate limiting** — the evaluate endpoint has a dedicated `ScopedRateThrottle` (default 1,000/min, configurable).
+- **Rate limiting** — the evaluate endpoints have dedicated `ScopedRateThrottle` scopes: `evaluation` (default 1,000/min) for the per-flag endpoint and `evaluation_bulk` (default 120/min) for the bulk one, which resolves an entire environment per call. Both configurable.
 
 ### Observability & audit
 
 - **Audit trail** — flag, variation, environment, segment, target, and prerequisite mutations write an `AuditLog` row with `old_value`/`new_value` JSON snapshots via a central `AuditService`. Rule, SDK key, and organization mutations are not yet audited.
-- **Evaluation logging** — every SDK evaluation is written to `EvaluationLog` by a Celery task, so the HTTP response returns without waiting on the DB write.
+- **Evaluation logging** — `POST /sdk/evaluate/` writes an `EvaluationLog` row through a Celery task, so the HTTP response returns without waiting on the DB write. The client bootstrap endpoint deliberately logs **nothing**: it resolves an entire environment, but a bootstrap is a download, not a read, and recording fifty impressions for an app that goes on to use three would inflate a table that has no rollup. Impressions for bootstrapped flags will arrive through the batching endpoint, where the SDK reports what it actually read.
 - **Read-only audit API** — `GET /api/v1/audit/`.
 
 ### Infrastructure
@@ -263,7 +265,8 @@ GET    /api/v1/sdk-keys/{id}/                        Retrieve a key
 POST   /api/v1/sdk-keys/{id}/revoke/                 Deactivate a key
 POST   /api/v1/sdk-keys/{id}/rotate/                 Revoke + issue replacement
 
-POST   /api/v1/sdk/evaluate/                         Evaluate a flag (SDK key auth)
+POST   /api/v1/sdk/evaluate/                         Evaluate one flag (SDK key auth)
+POST   /api/v1/sdk/flags/evaluate/                   Evaluate every flag in the environment
 
 GET    /api/v1/evaluation/logs/                      List past evaluation logs
 GET    /api/v1/audit/                                List audit log entries
@@ -295,6 +298,57 @@ Response — `result` carries the variation value directly, `result_type` is one
   "environment": "production"
 }
 ```
+
+### SDK bulk download
+
+`POST /api/v1/sdk/flags/evaluate/` resolves every flag in the key's environment
+for one user context in a single call — what an SDK asks for when it starts a
+session, instead of one request per flag.
+
+Header: `X-SDK-Key: sdk_srv_<token>`
+
+```json
+{
+  "user_context": { "user_id": "u_123", "country": "EG", "plan": "pro" }
+}
+```
+
+Response — flags keyed by flag key, so an SDK looks one up by name rather than
+scanning a list. `variation_id` is `null` for a flag with no variations
+configured:
+
+```json
+{
+  "environment": "production",
+  "flags": {
+    "button-theme": { "result": "#ff0000", "result_type": "string", "variation_id": 42 },
+    "dark-mode":    { "result": true,      "result_type": "boolean", "variation_id": 17 },
+    "new-checkout": { "result": false,     "result_type": "boolean", "variation_id": 18 }
+  }
+}
+```
+
+It is the same engine as the per-flag endpoint — kill switch, prerequisites,
+individual targets, rules, and rollout all apply identically, and a test
+parametrised over every targeting layer asserts the two agree flag for flag.
+
+**Why POST for a read?** The user context is an arbitrary nested object.
+Query-string encoding it is lossy for anything but flat strings, and it would
+put user attributes into access logs and proxy caches.
+
+**What it costs.** A fixed number of round trips, independent of how many flags
+the environment holds:
+
+| | Round trips |
+|---|---|
+| Flag-key index | 1 query, always — a warm cache knows each flag's config, but not which flags exist |
+| Cached payloads | 1 Redis `get_many` |
+| Cache misses | 1 query for those flags, 1 for the union of segments they reference, 1 `set_many` |
+| Evaluation | 0 — payloads are resolved once and handed to each evaluation, prerequisite chains included |
+
+Measured flat at 9 queries for 1, 2, 5, 20, and 50 flags on a cold cache, and
+exactly 1 query on a warm one. Archived flags, and flags not configured in this
+environment, are omitted rather than reported as errors.
 
 ### Targeting examples
 
@@ -396,7 +450,10 @@ Every app follows the same four layers: **view** (HTTP only), **serializer** (fi
 - **Compose stores no data.** Neither `db` nor `redis` declares a volume, so `docker compose down` destroys the database. Fine for local development; not usable as-is for a real deployment.
 - **Partial audit coverage.** Flag, variation, environment, segment, target, and prerequisite mutations are audited. Rule, SDK key, and organization mutations are not.
 - **Model/migration drift.** `manage.py makemigrations --check` still reports pending `Alter field id` changes on `evaluation` and `sdk_keys`.
-- **Prerequisite chains cost a cache read each.** One SDK evaluation resolves one cached entry per flag in the chain. No DB queries, but not free for deep chains.
+- **Bootstrapped flags produce no impression data.** `POST /sdk/flags/evaluate/` writes nothing to `EvaluationLog` by design, and the batching endpoint that would carry those impressions is not built yet. Until it is, flags served through the bootstrap are invisible to `GET /api/v1/evaluation/logs/`.
+- **Bulk download is evaluated, not raw config.** `POST /sdk/flags/evaluate/` returns resolved values for one user context, so an SDK cannot evaluate locally, work offline, or re-resolve a changed context without another request.
+- **Prerequisite chains cost a cache read each on the per-flag endpoint.** `POST /sdk/evaluate/` resolves one cached entry per flag in the chain. No DB queries, but not free for deep chains. The bulk endpoint does not pay this — its preloaded payloads cover the whole environment, gate flags included.
+- **`gt` / `lt` crash on a non-numeric attribute.** `RuleEvaluator._evaluate` calls `float(user_value)` unguarded, so a rule like `age gt 18` against a context of `{"age": "unknown"}` raises `ValueError` and returns **500** from `POST /sdk/evaluate/`. Pre-existing. Needs a decision — failing closed (no match) would match how every other unresolvable case in the engine behaves. Blocks the config-download spec ([SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md) §9.1).
 - **No benchmarks.** Nothing in this repo measures throughput, latency, or cache hit rate. Any performance characteristics are unmeasured.
 - **No OpenAPI schema.** Use the Postman collection.
 
@@ -431,6 +488,14 @@ A segment referencing another segment would need recursive membership resolution
 **Why SHA-256 for SDK key storage?**
 SDK keys are long-lived credentials, so storing raw values would turn any database breach into a full key compromise. Only the hash is persisted, and lookup is a single indexed query on the hash. The stored 16-char prefix lets a user identify a key without exposing the secret.
 
+**Why does bulk download return evaluated results rather than raw flag config?**
+Shipping the config would mean every SDK reimplements SHA-256 bucketing, rule
+precedence, segment membership, and prerequisite cycle detection — and any
+divergence between an SDK and the server is a flag serving the wrong value to
+real users. Evaluating server-side keeps one implementation of the engine. The
+cost is that an SDK cannot evaluate offline or re-evaluate a changed context
+without another call.
+
 **Why soft-delete (archive) instead of hard-delete?**
 Hard-deleting a flag destroys its audit history, evaluation logs, and rule configuration. Archiving preserves all of it while removing the flag from evaluation and list responses.
 
@@ -463,10 +528,12 @@ A variation must hold a boolean, string, number, or arbitrary JSON object. `JSON
 - Reusable segments
 - Rule-level percentage rollout
 - Prerequisite flags
+- SDK client bootstrap (`POST /sdk/flags/evaluate/`) — every flag in an environment resolved for one user context
 
 **Not built:**
 
-- **SDK infrastructure** — bulk flag download, impression batching, SSE streaming of flag updates.
+- **SDK config download** (`GET /sdk/flags/config/`) — the raw ruleset, for server-side SDKs that evaluate in-process. The bootstrap endpoint above costs a round trip per *user context*, which is the wrong shape for a server SDK handling thousands of users per process. Specified in [SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md).
+- **SDK infrastructure** — impression batching (bulk ingest of eval logs from an SDK), SSE streaming of flag updates.
 - **Workflow** — stale flag detection, scheduled changes, webhooks, approval workflows.
 - **Analytics** — impression aggregation, data export.
 - **Experimentation** — A/B testing framework, statistical significance reporting.
