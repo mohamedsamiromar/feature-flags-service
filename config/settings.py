@@ -139,6 +139,9 @@ REST_FRAMEWORK = {
         "user": os.getenv("THROTTLE_RATE_USER", "600/minute"),
         # Dedicated scope applied only to the evaluation endpoint
         "evaluation": os.getenv("THROTTLE_RATE_EVALUATION", "1000/minute"),
+        # Bulk evaluation resolves every flag in an environment per call,
+        # so it gets a tighter budget than the single-flag endpoint.
+        "evaluation_bulk": os.getenv("THROTTLE_RATE_EVALUATION_BULK", "120/minute"),
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,
