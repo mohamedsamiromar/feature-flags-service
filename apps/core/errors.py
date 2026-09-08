@@ -102,6 +102,11 @@ class Error(Enum):
         "http_status": status.HTTP_400_BAD_REQUEST,
         "detail": _("No segment with key ({}) exists in this project."),
     }
+    NON_NUMERIC_COMPARISON = {
+        "code": -418,
+        "http_status": status.HTTP_400_BAD_REQUEST,
+        "detail": _("Operator ({}) compares numbers, but value ({}) is not one."),
+    }
 
 
 class APIError(Exception):

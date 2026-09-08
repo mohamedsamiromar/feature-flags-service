@@ -174,7 +174,7 @@ comparison, except `gt`/`lt`.
 | `eq` / `neq` | String equality against `value` |
 | `contains` | `value` is a substring of the context value |
 | `in` / `not_in` | `value` is split on `,` and each part stripped; membership test |
-| `gt` / `lt` | Both sides coerced to float — **see §9.1, undefined today** |
+| `gt` / `lt` | Both sides coerced to float; **an operand that will not coerce does not match** — see §4.5 |
 | `in_segment` / `not_in_segment` | `attribute` is ignored; `value` is a segment key |
 
 ### 4.4 Segment membership — precedence, highest first
@@ -195,6 +195,10 @@ Everything unresolvable resolves to *off*. Never invert an unresolvable referenc
 - A rule naming a **segment key absent from the map does not match — whatever the
   operator.** Not `not(unresolvable)`. Inverting it would make `not_in_segment`
   match every user and turn one dangling reference into a full rollout.
+- A `gt`/`lt` operand that **will not coerce to a number does not match**, on either
+  side. `{"age": "unknown"}` against `age gt 18` is not an error and not a match.
+  Neither operator may be implemented as the negation of the other: both must
+  return false, or an unusable attribute matches half the users it touches.
 - A prerequisite naming a **flag absent from the payload** leaves the dependent off.
 - A **prerequisite cycle** leaves every flag in it off. SDKs must carry the chain
   of flags being resolved and bail on a repeat, with a depth cap of **10**
@@ -257,7 +261,8 @@ Rules that make it work:
   digest as bytes instead of a hex integer, or that salts the flag-level rollout,
   fails immediately rather than at 3% of production traffic.
 - **Every fail-closed case is a vector**: dangling segment under both operators,
-  missing prerequisite, cyclic prerequisite, unconfigured segment, missing attribute.
+  missing prerequisite, cyclic prerequisite, unconfigured segment, missing
+  attribute, and a non-numeric `gt`/`lt` operand under both operators.
 
 An SDK is conformant when it passes the vectors. That is the answer to the
 objection that made this endpoint risky.
@@ -314,22 +319,20 @@ excluding oversized segments and marking them server-eval-only. Unresolved — �
 
 ## 9. Open questions — must be settled before `format_version: 1` freezes
 
-### 9.1 `gt` / `lt` against a non-numeric attribute is currently a crash
+### 9.1 `gt` / `lt` against a non-numeric attribute — **settled 2026-08-29**
 
-`RuleEvaluator._evaluate` calls `float(user_value)` unguarded. A context of
-`{"age": "not-a-number"}` against a `gt` rule raises `ValueError`, which nothing
-catches — verified 2026-08-29 as a **500 on the live `POST /sdk/evaluate/`
-endpoint**. This is pre-existing and unrelated to the bulk work.
+Resolved as **fail closed**: an operand that will not coerce to a number does not
+match, on either side, for both operators. This is the same answer the engine
+gives a missing attribute or a dangling segment key, and it is now part of the
+conformance contract (§4.3, §4.5, and the `gt`/`lt` vectors in §6).
 
-It blocks this spec: a conformance contract cannot be written around behavior
-that crashes. It needs a decision first, and the options are not equivalent:
-
-- **Fail closed (no match)** — consistent with every other unresolvable case in
-  the engine, and with "a missing attribute never matches". Recommended.
-- **`400` at evaluation time** — surfaces the misconfiguration, but turns a bad
-  user attribute into a failed request in the customer's hot path.
-- **Numeric coercion at rule-write time** — validates `value` but cannot validate
-  the *context*, which arrives at runtime. Doesn't actually close the hole.
+It was previously an uncaught `ValueError` — a **500 on `POST /sdk/evaluate/`**.
+Returning `400` at evaluation time was rejected: it turns one bad user attribute
+into a failed request inside the customer's hot path. Coercing at rule-write time
+does not close the hole on its own (the *context* arrives at runtime), but the
+server does it as well, so a non-numeric rule `value` is a 400 at authoring time
+rather than a rule that silently matches nobody. SDKs need not replicate that
+check — they never see an unvalidated rule.
 
 ### 9.2 Response size ceiling
 

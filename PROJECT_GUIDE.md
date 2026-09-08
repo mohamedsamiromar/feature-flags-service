@@ -110,8 +110,9 @@ declared status. Views need no `try/except`.
 - **Three-layer numeric validation** — `rollout_percentage`, on both `FeatureFlag` and
   `Rule`, is enforced at the serializer, the model validator, *and* a PostgreSQL
   `CheckConstraint`.
-- **Uncertainty fails closed** — an unresolvable prerequisite or segment reference
-  leaves the flag off. Never invert an unknown.
+- **Uncertainty fails closed** — an unresolvable prerequisite or segment reference,
+  or a `gt`/`lt` operand that is not a number, matches nobody and leaves the flag off.
+  Never invert an unknown.
 
 ---
 
@@ -316,7 +317,8 @@ The targeting *configuration* API. Querysets are scoped by project membership.
 
 > Operators: `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`, `in_segment`,
 > `not_in_segment`. Matching lives in `targeting.RuleEvaluator`; segment membership in
-> `segments.SegmentEvaluator`.
+> `segments.SegmentEvaluator`. `gt`/`lt` compare numerically: an operand that will not
+> coerce matches nobody, and a non-numeric `value` is rejected on write (400, -418).
 
 ### 5.6 Environments — `/api/v1/projects/{project_key}/environments/`
 
@@ -485,7 +487,7 @@ Docker Compose; Postman collection.
 
 - [x] SDK **client bootstrap** — `POST /sdk/flags/evaluate/` (one user context, every flag)
 - [ ] SDK **config download** — `GET /sdk/flags/config/` (raw ruleset, server-side SDKs evaluate
-      in-process). Specified in `SDK_CONFIG_SPEC.md`; blocked on the `gt`/`lt` crash in §9.1
+      in-process). Specified in `SDK_CONFIG_SPEC.md`
 - [ ] Impression **batching** endpoint (bulk eval-log ingest from an SDK)
 - [ ] **SSE streaming** — push flag updates to connected SDKs (builds on `config_version`)
 

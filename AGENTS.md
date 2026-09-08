@@ -191,9 +191,17 @@ Both paths share `_build_flag_data`, so they can never write differently shaped 
 
 The one query a warm bulk call cannot avoid is `EvaluationQuery.active_flag_keys` — a warm cache knows each flag's config, not which flags exist. Do not "fix" that by caching the key index: a stale index makes a newly created flag invisible for the full TTL.
 
-### Known live bug: `gt` / `lt` on a non-numeric attribute
+### Numeric operators coerce, and fail closed when they cannot
 
-`RuleEvaluator._evaluate` calls `float(user_value)` with no guard. A `gt`/`lt` rule against a context attribute that is not numeric raises `ValueError`, uncaught, → **500 on `POST /sdk/evaluate/`**. Verified 2026-08-29. Do not write new operators that coerce types without deciding what a failed coercion means; the engine's answer everywhere else is "does not match".
+`gt` / `lt` run through `RuleEvaluator._evaluate_numeric`, which coerces both sides with `rules.models.to_number` and returns False if either will not convert. Until 2026-08-29 this was a bare `float(user_value)`: a rule like `age gt 18` against `{"age": "unknown"}` raised `ValueError`, uncaught, → **500 on `POST /sdk/evaluate/`**.
+
+The user context is arbitrary runtime input from the caller's own application, so it can never be validated ahead of time — the only options were fail closed or return an error from the customer's hot path. Fail closed matches every other unresolvable case in the engine.
+
+**Neither operator may be written as the negation of the other.** Both return False on junk; `not gt` would match every user whose attribute is unusable.
+
+Authored rule `value`s are checked separately, at write time — `RuleService._assert_numeric_value` and `SegmentService._assert_numeric_value` reject a non-numeric value for `gt`/`lt` with `NON_NUMERIC_COMPARISON` (-418), because a rule that fails closed forever with nothing to show why is a silent misconfiguration. The check reads the rule as it will be *after* the write, so changing only the operator cannot slip past it.
+
+Do not write new operators that coerce types without deciding what a failed coercion means; the engine's answer everywhere else is "does not match".
 
 ### Impressions are reads, not downloads
 
@@ -238,7 +246,7 @@ def test_flag_create(auth_client, base):
 5. Cache keys are scoped to `(project_id, env_id, flag_key)` — environments are independent.
 6. `rollout_percentage` is validated at all three layers.
 7. Nothing overrides the kill switch. Prerequisites sit above individual targeting.
-8. Uncertainty fails closed. Never invert an unresolvable reference.
+8. Uncertainty fails closed. Never invert an unresolvable reference — that covers an unknown segment key, a missing prerequisite, and an operand `gt`/`lt` cannot coerce.
 9. A flag's `key` and a segment's `key` are immutable after creation — they are referenced by SDK calls, cache entries, version snapshots, and targeting rules.
 10. Segments do not nest; `SegmentRule` forbids the segment operators.
 11. Deleting a referenced segment (409) or a flag that gates another (409) is refused rather than left dangling.

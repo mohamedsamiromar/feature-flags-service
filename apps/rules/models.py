@@ -22,6 +22,25 @@ class Operator(models.TextChoices):
     def segment_operators(cls) -> set:
         return {cls.IN_SEGMENT, cls.NOT_IN_SEGMENT}
 
+    @classmethod
+    def numeric_operators(cls) -> set:
+        """Operators that compare numbers rather than strings."""
+        return {cls.GT, cls.LT}
+
+
+def to_number(value):
+    """Coerce one side of a `gt`/`lt` comparison to float, or None if it is not a number.
+
+    The single coercion rule for the numeric operators: `RuleEvaluator` applies
+    it to both sides at evaluation time, and the services apply it to reject a
+    non-numeric rule `value` at write time. One definition so the two can never
+    disagree about what counts as a number.
+    """
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
 
 class Rule(BaseModel):
     flag = models.ForeignKey(FeatureFlag, on_delete=models.CASCADE, related_name="rules")

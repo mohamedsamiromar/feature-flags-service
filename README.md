@@ -99,7 +99,7 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 
 - **Flag CRUD** — flags identified by a human-readable `key` (e.g. `dark-mode`), unique per project. The key is fixed at creation: it addresses SDK calls, cache entries, and every version snapshot, so changing it would break live integrations.
 - **Percentage rollout** — SHA-256 deterministic bucket assignment.
-- **Rule-based targeting** — ordered rules with operators `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`, `in_segment`, `not_in_segment`.
+- **Rule-based targeting** — ordered rules with operators `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`, `in_segment`, `not_in_segment`. `gt`/`lt` compare numerically and match nobody when an operand is not a number; a non-numeric rule value is rejected at write time.
 - **Redis caching** — flag config, rules, targets, segments, and prerequisites cached per `(project, environment, key)`, invalidated on every mutation that could change an answer.
 - **One-call toggle** — `POST /flags/{key}/toggle/` with `{"environment": "production"}` flips that environment's kill switch, invalidates the cache, and writes an audit entry. The per-environment state is created on first toggle (off by default, so the first call turns the flag on).
 
@@ -453,7 +453,6 @@ Every app follows the same four layers: **view** (HTTP only), **serializer** (fi
 - **Bootstrapped flags produce no impression data.** `POST /sdk/flags/evaluate/` writes nothing to `EvaluationLog` by design, and the batching endpoint that would carry those impressions is not built yet. Until it is, flags served through the bootstrap are invisible to `GET /api/v1/evaluation/logs/`.
 - **Bulk download is evaluated, not raw config.** `POST /sdk/flags/evaluate/` returns resolved values for one user context, so an SDK cannot evaluate locally, work offline, or re-resolve a changed context without another request.
 - **Prerequisite chains cost a cache read each on the per-flag endpoint.** `POST /sdk/evaluate/` resolves one cached entry per flag in the chain. No DB queries, but not free for deep chains. The bulk endpoint does not pay this — its preloaded payloads cover the whole environment, gate flags included.
-- **`gt` / `lt` crash on a non-numeric attribute.** `RuleEvaluator._evaluate` calls `float(user_value)` unguarded, so a rule like `age gt 18` against a context of `{"age": "unknown"}` raises `ValueError` and returns **500** from `POST /sdk/evaluate/`. Pre-existing. Needs a decision — failing closed (no match) would match how every other unresolvable case in the engine behaves. Blocks the config-download spec ([SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md) §9.1).
 - **No benchmarks.** Nothing in this repo measures throughput, latency, or cache hit rate. Any performance characteristics are unmeasured.
 - **No OpenAPI schema.** Use the Postman collection.
 

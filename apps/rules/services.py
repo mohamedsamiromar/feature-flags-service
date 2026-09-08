@@ -1,7 +1,7 @@
 from apps.flags.services import FlagService
 from apps.organizations.services import AccessService
 from apps.core.errors import APIError, Error
-from apps.rules.models import Operator, Rule
+from apps.rules.models import Operator, Rule, to_number
 from apps.rules.queries import RuleQuery
 from apps.segments.queries import SegmentQuery
 
@@ -21,6 +21,7 @@ class RuleService:
         self._assert_flag_writable(flag, user)
         self._assert_segment_exists(flag, validated_data)
         self._assert_attribute_present(validated_data)
+        self._assert_numeric_value(validated_data)
         rule = RuleQuery.create(**validated_data)
         FlagService.invalidate_flag_caches(rule.flag)
         return rule
@@ -30,6 +31,7 @@ class RuleService:
         self._assert_flag_writable(flag, user)
         self._assert_segment_exists(flag, validated_data, current=rule)
         self._assert_attribute_present(validated_data, current=rule)
+        self._assert_numeric_value(validated_data, current=rule)
         for attr, value in validated_data.items():
             setattr(rule, attr, value)
         RuleQuery.save(rule)
@@ -77,3 +79,24 @@ class RuleService:
         attribute = validated_data.get("attribute", current.attribute if current else "")
         if not attribute:
             raise APIError(Error.REQUIRED_FIELD)
+
+    @staticmethod
+    def _assert_numeric_value(validated_data: dict, current: Rule = None) -> None:
+        """`gt`/`lt` compare numbers, so the authored `value` must be one.
+
+        Evaluation fails closed on an operand that will not coerce, so
+        `age gt "eighteen"` no longer crashes — but left unchecked it would
+        match nobody, forever, with nothing to show why. Rejecting it at write
+        time is the same reasoning as `_assert_segment_exists`: a typo must not
+        become a rule that quietly does nothing.
+
+        The check runs against the rule as it will be *after* the write, so
+        editing a `gt` rule's priority does not sneak past it.
+        """
+        operator = validated_data.get("operator", current.operator if current else None)
+        if operator not in Operator.numeric_operators():
+            return
+
+        value = validated_data.get("value", current.value if current else None)
+        if to_number(value) is None:
+            raise APIError(Error.NON_NUMERIC_COMPARISON, extra=[operator, value])
