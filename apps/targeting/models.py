@@ -1,10 +1,9 @@
-from django.db import models
-from apps.core.models import BaseModel
-
-class Country(BaseModel):
-    name = models.CharField(max_length=100)
-    code = models.CharField(max_length=5, unique=True)
-
-class City(BaseModel):
-    name = models.CharField(max_length=100)
-    country = models.ForeignKey(Country, on_delete=models.CASCADE)
+# No models.
+#
+# This app is the rule *evaluator* — `RuleEvaluator` in services.py — and owns
+# no tables. Rules themselves live in `apps.rules`, segments in `apps.segments`.
+#
+# It previously carried `Country` and `City` scaffold models from an early
+# geo-targeting sketch. Neither was ever referenced by the engine, and
+# 0002_delete_scaffold_models drops them. The app stays in INSTALLED_APPS so
+# that migration has somewhere to live.

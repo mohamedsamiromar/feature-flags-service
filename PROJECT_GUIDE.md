@@ -458,8 +458,6 @@ Docker Compose; Postman collection.
 - **Partial audit coverage.** Flag, variation, environment, segment, target, and
   prerequisite mutations are audited. **Rule, SDK key, and organization mutations are
   not** — `AuditService` is only called from `flags/`, `segments/`, and `environment/`.
-- **Model/migration drift.** `makemigrations --check` still reports pending
-  `Alter field id` changes on `evaluation` and `sdk_keys`.
 - **`FeatureFlag.is_enabled` / `rollout_percentage` are quasi-legacy.** Evaluation reads
   the `EnvironmentFlag` values; these serve as global defaults.
 - **Prerequisite chains cost a cache read each.** One evaluation resolves one cached
@@ -467,8 +465,6 @@ Docker Compose; Postman collection.
 - **`delete_segment` check-then-delete is not transactional.** A rule created
   concurrently with a segment delete could leave a dangling reference. Benign, because
   unknown segments fail closed — do *not* "fix" it by inverting that fallback.
-- **`targeting` app has leftover scaffold models** (`Country`, `City`).
-- **Compose stores no data** — neither `db` nor `redis` declares a volume.
 
 ---
 

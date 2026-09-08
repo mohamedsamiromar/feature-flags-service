@@ -22,6 +22,8 @@ services:
       POSTGRES_PASSWORD: postgres
     ports:
       - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d feature_flags"]
       interval: 5s
@@ -32,6 +34,8 @@ services:
     image: redis:7
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
 
   celery:
     build: .
@@ -56,3 +60,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+
+# Named volumes so `docker compose down` stops the stack without destroying the
+# database. Use `docker compose down -v` when you actually want a clean slate.
+volumes:
+  postgres_data:
+  redis_data:
