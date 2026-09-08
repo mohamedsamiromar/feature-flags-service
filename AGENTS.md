@@ -191,7 +191,9 @@ Rule-level rollout is salted with the rule id so two rules at the same percentag
 
 ### Celery boundary
 
-`CELERY_TASK_SERIALIZER = "json"` and the cached flag config contains Python `set`s (segment membership). **Never pass `flag_data` or a segment payload to a Celery task** — pass evaluated results and scalars. `log_evaluations` (the batching endpoint's ingest primitive) takes `[{flag_id, result}, ...]` plus one shared `context_data`; keep that list to scalars and JSON values. The client bootstrap endpoint dispatches **no** task at all — see below.
+`CELERY_TASK_SERIALIZER = "json"` and the cached flag config contains Python `set`s (segment membership). **Never pass `flag_data` or a segment payload to a Celery task** — pass evaluated results and scalars. `log_evaluations` (the ingest primitive behind `POST /sdk/impressions/`) takes `[{flag_id, result, context_data}, ...]`; keep that list to scalars and JSON values. The client bootstrap endpoint dispatches **no** task at all — see below.
+
+**Changing a task signature needs the worker restarted, and in a real deploy, ordered.** Celery does not auto-reload, so `docker compose restart celery` after editing `tasks.py` — otherwise the web container queues the new shape and the old worker rejects it (`Reject: missing 1 required keyword-only argument`), silently dropping every message in between. This bit during the impression-batching work: the endpoint returned `202`, and nothing was written. Deploy workers before web, or make the new argument optional for one release.
 
 ### Bulk evaluation
 
@@ -224,7 +226,7 @@ Do not write new operators that coerce types without deciding what a failed coer
 
 `POST /sdk/flags/evaluate/` resolves every flag in an environment and logs **none** of them. A bootstrap is a download; the app may go on to read three of fifty, and writing all fifty to `EvaluationLog` — which has no rollup — records fetches nobody consumed. `POST /sdk/evaluate/` still logs, because it genuinely serves one flag to one caller.
 
-Do not "restore" logging to the bootstrap endpoint. Impressions for those flags belong to the batching endpoint (Phase 3, item 2), where the SDK reports what it actually used. `TestBulkImpressionLogging` fails if a task is dispatched or a row is written.
+Do not "restore" logging to the bootstrap endpoint. Impressions for those flags belong to `POST /sdk/impressions/`, where the SDK reports what it actually used. `TestBulkImpressionLogging` fails if a task is dispatched or a row is written.
 
 ### Archived flags
 
@@ -285,12 +287,14 @@ See `README.md` → Roadmap and `PROJECT_GUIDE.md` §8 for the full checklist.
 
 **Complete:** Phase 1 (data model, multi-tenancy) and Phase 2 (targeting — individual targeting, segments, rule-level rollout, prerequisites).
 
-**Phase 3 (SDK infrastructure) — in progress:**
+**Phase 3 (SDK infrastructure) — complete except SSE:**
 
 - ✅ SDK client bootstrap — `POST /sdk/flags/evaluate/` (one user context, every flag)
 - ✅ SDK config download — `GET /sdk/flags/config/` (raw ruleset for server-side SDKs). See `SDK_CONFIG_SPEC.md`
 - ✅ Impression batching — `POST /sdk/impressions/`
 - SSE streaming of flag updates — blocked on ASGI, not on features. Under WSGI each open stream holds a worker thread; `config_version` polling covers the gap.
+
+**Phases 5–7 are deliberately out of scope, not a backlog.** Analytics rollups, experimentation with statistical significance, and SSO/SCIM are documented as decisions in `README.md` → Deliberately out of scope. Do not start one because it appears "missing" — read the reasoning there first, and if it changes, change the reasoning rather than quietly shipping half of it.
 
 **The two bulk endpoints are not alternatives.** The bootstrap endpoint costs one round trip per *user context* — right for a browser SDK (one user per session), wrong for a server-side SDK evaluating thousands of users per process. That is what the config download is for.
 

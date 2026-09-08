@@ -630,7 +630,7 @@ A variation must hold a boolean, string, number, or arbitrary JSON object. `JSON
 
 ## Roadmap
 
-**Built** — Phase 1 (foundational data model) and Phase 2 (targeting):
+**Built** — the flag engine is complete: Phase 1 (data model), Phase 2 (targeting), and Phase 3 (SDK infrastructure) less SSE.
 
 - Flag CRUD, multivariate flags, archive/soft-delete, per-environment state and toggle
 - Version history with one-click rollback
@@ -646,13 +646,20 @@ A variation must hold a boolean, string, number, or arbitrary JSON object. `JSON
 - Self-serve registration, provisioning a personal organization, project, and environments
 - Audit coverage across every mutating service, with credential redaction
 
-**Not built:**
+**Next** — governance, and the one deferred piece of Phase 3:
 
-- **SSE streaming of flag updates.** `config_version` already makes it tractable — a stream event carries the new version and the SDK re-fetches. What is missing is the deployment model: this project runs under WSGI, where every open SSE connection holds a worker thread for its lifetime, so a handful of connected SDKs would exhaust the pool. It needs an ASGI server, which is a deployment change rather than a feature. Until then, `If-None-Match` polling at the advertised 30s is the refresh path, and a `304` costs a version read.
-- **Workflow** — stale flag detection, scheduled changes, webhooks, approval workflows.
-- **Analytics** — impression aggregation, data export.
-- **Experimentation** — A/B testing framework, statistical significance reporting.
-- **Enterprise** — SSO and SCIM provisioning.
+- **SSE streaming of flag updates.** Deferred on the deployment model, not on features. `config_version` already makes it tractable: a stream event carries the new version and the SDK re-fetches rather than trusting a delta it cannot verify. What is missing is ASGI — under WSGI every open stream holds a worker thread for its lifetime, so a handful of connected SDKs exhausts the pool. `If-None-Match` polling at the advertised 30s is the refresh path until that changes, and a `304` costs a version read.
+- **Workflow** — stale flag detection (a Celery-beat job; beat is already running), scheduled changes, webhooks on mutation, approval workflows for production.
+
+### Deliberately out of scope
+
+These are not a backlog. They are named here so their absence reads as a decision rather than an omission.
+
+- **Analytics beyond the raw log** — impression aggregation and warehouse export. `EvaluationLog` is written and queryable, but it has no rollup, so it answers "what was served" and not "how often, over time". Doing that properly means a time-partitioned rollup and a retention policy, which is a data-engineering project with its own storage story rather than a feature of the flag engine.
+
+- **Experimentation** — A/B testing with statistical significance. This is the largest gap between this project and a commercial product, and it is genuinely a different product: metric ingestion, exposure/assignment tracking separate from impressions, variance estimation, and a decision rule about when a result may be read. The engine already provides what experimentation would build on — deterministic bucketing, variation ids, and impressions — but shipping a half-implemented significance test is worse than shipping none, because a wrong p-value is acted on with confidence.
+
+- **SSO and SCIM** — SAML/OIDC login and directory-driven provisioning. Mostly integration rather than design, and the reason it is not here is that it cannot be verified in this repository: correctness means round-tripping against a real identity provider, handling assertion replay and clock skew, and reconciling deprovisioning against the last-owner rule. Membership, roles, and the 404-not-403 boundary are already the seam it would attach to.
 
 ---
 
