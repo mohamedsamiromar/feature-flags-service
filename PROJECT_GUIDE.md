@@ -205,11 +205,15 @@ Every model inherits `core.BaseModel` (`id`, `created_at`, `updated_at`) unless 
 
 | Endpoint | Why / idea | Services & models |
 | --- | --- | --- |
+| `POST /auth/register/` | Self-serve signup. Creates the user **and** the tenancy they need to do anything: a personal organization they own, a `Default` project, and the three standard environments. Returns a JWT pair so the next call needs no second round trip. Atomic — a user with no organization is an account the API cannot repair. Own throttle scope (`registration`, 10/hour): it is the only anonymous endpoint whose abuse leaves rows behind. | `RegistrationService` → `accounts.User`, `organizations.{Organization,Membership,Project}`, `environment.Environment` |
 | `POST /auth/token/` | Exchange username+password for an `access`+`refresh` JWT pair. | `TokenObtainPairView` → `accounts.User` |
 | `POST /auth/token/refresh/` | Trade a refresh token for a fresh access token. | `TokenRefreshView` |
 
 > Short-lived access tokens limit the blast radius of a leak; the refresh token keeps
-> sessions alive without storing passwords. **There is no registration endpoint** — see §8.
+> sessions alive without storing passwords. Username uniqueness is enforced by the
+> database, not by a serializer check: the gap between a `SELECT` and an `INSERT` is
+> exactly where a concurrent signup lands, so `RegistrationService` translates the
+> `IntegrityError` into `USERNAME_TAKEN` (409, -419).
 
 ### 5.2 Organizations & projects — `apps/organizations`
 
@@ -452,9 +456,6 @@ Docker Compose; Postman collection.
 
 ## 7. Known rough edges
 
-- **No self-serve registration.** Users come from `createsuperuser` or the admin. A
-  `POST /api/v1/auth/register/` should also provision a personal organization and
-  default project, mirroring the `organizations/0002_backfill_personal_orgs` migration.
 - **Partial audit coverage.** Flag, variation, environment, segment, target, and
   prerequisite mutations are audited. **Rule, SDK key, and organization mutations are
   not** — `AuditService` is only called from `flags/`, `segments/`, and `environment/`.
@@ -508,17 +509,13 @@ Docker Compose; Postman collection.
 
 - [ ] SSO + SCIM provisioning
 
-### The single most impactful next endpoint
-
-`POST /api/v1/auth/register/`. For a backend meant to be adopted "in minutes", the fact
-that the only way to create a user is `createsuperuser` is the sharpest edge left.
-
 ---
 
 ## 9. Endpoint index (quick reference)
 
 ```text
 # Auth
+POST   /api/v1/auth/register/
 POST   /api/v1/auth/token/
 POST   /api/v1/auth/token/refresh/
 

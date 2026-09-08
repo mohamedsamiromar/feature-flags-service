@@ -142,6 +142,9 @@ REST_FRAMEWORK = {
         # Bulk evaluation resolves every flag in an environment per call,
         # so it gets a tighter budget than the single-flag endpoint.
         "evaluation_bulk": os.getenv("THROTTLE_RATE_EVALUATION_BULK", "120/minute"),
+        # Signup is anonymous and each success writes a user, an organization,
+        # a membership, a project, and three environments. Tighter than `anon`.
+        "registration": os.getenv("THROTTLE_RATE_REGISTRATION", "10/hour"),
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,

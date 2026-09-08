@@ -25,7 +25,7 @@ docker compose run --rm web pytest -v
 # Run tests for specific apps
 docker compose run --rm web pytest apps/flags/tests/ apps/segments/tests/ -v
 
-# Create superuser (there is no self-serve registration endpoint yet)
+# Create superuser (for /admin/; regular accounts come from POST /api/v1/auth/register/)
 docker compose exec web python manage.py createsuperuser
 
 # Health check
@@ -277,4 +277,4 @@ See `README.md` → Roadmap and `PROJECT_GUIDE.md` §8 for the full checklist.
 
 **The two bulk endpoints are not alternatives.** The bootstrap endpoint costs one round trip per *user context* — right for a browser SDK (one user per session), wrong for a server-side SDK evaluating thousands of users per process. That is what the config download is for.
 
-**Known gap worth closing first:** there is no `POST /api/v1/auth/register/`. It should also provision a personal organization and default project, mirroring `organizations/0002_backfill_personal_orgs`.
+**Signup provisions tenancy, not just a user.** `POST /api/v1/auth/register/` creates the personal organization, `Default` project, and three environments alongside the user, in one transaction — the same shape `organizations/0002_backfill_personal_orgs` gave existing users. Anything that adds a *required* piece of per-account setup belongs in `RegistrationService.register`, inside that transaction: an account missing one of these has no API path back to a working state.

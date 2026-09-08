@@ -190,6 +190,7 @@ Import the [Postman collection](feature_flags.postman_collection.json) to explor
 Flags, environments, and segments are addressed under their project.
 
 ```text
+POST   /api/v1/auth/register/                        Create an account + personal org, project, envs
 POST   /api/v1/auth/token/                           Obtain access + refresh token
 POST   /api/v1/auth/token/refresh/                   Rotate access token
 
@@ -446,7 +447,6 @@ Every app follows the same four layers: **view** (HTTP only), **serializer** (fi
 
 ## Known gaps
 
-- **No self-serve registration.** There is no `POST /api/v1/auth/register/`; users are created via `createsuperuser` or the admin.
 - **Partial audit coverage.** Flag, variation, environment, segment, target, and prerequisite mutations are audited. Rule, SDK key, and organization mutations are not.
 - **Bootstrapped flags produce no impression data.** `POST /sdk/flags/evaluate/` writes nothing to `EvaluationLog` by design, and the batching endpoint that would carry those impressions is not built yet. Until it is, flags served through the bootstrap are invisible to `GET /api/v1/evaluation/logs/`.
 - **Bulk download is evaluated, not raw config.** `POST /sdk/flags/evaluate/` returns resolved values for one user context, so an SDK cannot evaluate locally, work offline, or re-resolve a changed context without another request.
