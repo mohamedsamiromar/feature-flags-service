@@ -103,13 +103,8 @@ class FlagService:
         FlagQuery.delete(flag)
         self._invalidate_env_caches(project_id, flag_key, env_ids)
 
-        flag.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=flag,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=flag, old_value=old_snapshot
         )
 
     def archive_flag(self, project_key: str, key: str, user) -> FeatureFlag:
@@ -262,13 +257,8 @@ class FlagService:
 
         # Django clears the pk on delete; restore it so the audit row keeps a
         # usable entity_id (same pattern as delete_flag).
-        variation.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=variation,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=variation, old_value=old_snapshot
         )
 
     # ------------------------------------------------------------------
@@ -315,13 +305,8 @@ class FlagService:
 
         # Django clears the pk on delete; restore it so the audit row keeps a
         # usable entity_id (same pattern as delete_flag).
-        target.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=target,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=target, old_value=old_snapshot
         )
 
     # ------------------------------------------------------------------
@@ -384,13 +369,8 @@ class FlagService:
         FlagPrerequisiteQuery.delete(prerequisite)
         self.invalidate_flag_caches(flag)
 
-        prerequisite.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=prerequisite,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=prerequisite, old_value=old_snapshot
         )
 
     @staticmethod

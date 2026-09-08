@@ -102,13 +102,8 @@ class SegmentService:
         old_snapshot = AuditService.snapshot(segment)
         SegmentQuery.delete(segment)
 
-        segment.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=segment,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=segment, old_value=old_snapshot
         )
 
     # ------------------------------------------------------------------
@@ -148,13 +143,8 @@ class SegmentService:
         SegmentTargetQuery.delete(target)
         self._invalidate_referencing_flags(segment)
 
-        target.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=target,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=target, old_value=old_snapshot
         )
 
     # ------------------------------------------------------------------
@@ -234,11 +224,6 @@ class SegmentService:
         SegmentRuleQuery.delete(rule)
         self._invalidate_referencing_flags(segment)
 
-        rule.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=rule,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=rule, old_value=old_snapshot
         )

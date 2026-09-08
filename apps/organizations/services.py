@@ -9,6 +9,7 @@ invisible, not forbidden).
 
 from django.utils.text import slugify
 
+from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
 from apps.organizations.models import Membership, Organization, Project, Role
 from apps.organizations.queries import (
@@ -48,16 +49,42 @@ class AccessService:
 
 
 class OrganizationService:
+    """Audited on every mutation.
+
+    An organization delete cascades to its projects, flags, environments, and
+    SDK keys — the single most destructive call in the API, and the one whose
+    "who did this" is hardest to reconstruct afterwards, because the rows it
+    destroyed are gone.
+    """
+
     def create(self, user, name: str, slug: str = None) -> Organization:
         slug = self._unique_slug(slug or name)
         org = OrganizationQuery.create(name=name, slug=slug)
-        MembershipQuery.create(organization=org, user=user, role=Role.OWNER)
+        membership = MembershipQuery.create(
+            organization=org, user=user, role=Role.OWNER
+        )
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE,
+            entity=org,
+            old_value=None,
+            new_value=AuditService.snapshot(org),
+        )
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE,
+            entity=membership,
+            old_value=None,
+            new_value=AuditService.snapshot(membership),
+        )
         return org
 
     def delete(self, user, slug: str) -> None:
         org = OrganizationQuery.get_for_member(slug, user)
         AccessService.assert_is_owner(user, org.id)
+        old_snapshot = AuditService.snapshot(org)
         OrganizationQuery.delete(org)
+        AuditService.log_delete(user=user, entity=org, old_value=old_snapshot)
 
     @staticmethod
     def _unique_slug(source: str) -> str:
@@ -70,13 +97,33 @@ class OrganizationService:
 
 
 class MembershipService:
+    """Audited on every mutation.
+
+    Membership *is* the access-control boundary: adding one grants a stranger
+    sight of every flag in the org, and a role change is a privilege change. The
+    acting user recorded on each entry is the admin who made it, not the member
+    it was made to — the trail answers "who granted this", which is the question
+    that matters.
+    """
+
     def add(self, actor, slug: str, user, role: str) -> Membership:
         # `user` is the target user's id (from MembershipWriteSerializer).
         org = OrganizationQuery.get_for_member(slug, actor)
         AccessService.assert_can_admin(actor, org.id)
         if MembershipQuery.role_for(user, org.id) is not None:
             raise APIError(Error.ALREADY_IN_STATE, extra=["User", "a member"])
-        return MembershipQuery.create(organization=org, user_id=user, role=role)
+
+        membership = MembershipQuery.create(
+            organization=org, user_id=user, role=role
+        )
+        AuditService.log(
+            user=actor,
+            action=AuditService.CREATE,
+            entity=membership,
+            old_value=None,
+            new_value=AuditService.snapshot(membership),
+        )
+        return membership
 
     def change_role(self, actor, slug: str, user_id, role: str) -> Membership:
         org = OrganizationQuery.get_for_member(slug, actor)
@@ -85,8 +132,18 @@ class MembershipService:
         # Never leave an org with zero owners.
         if membership.role == Role.OWNER and role != Role.OWNER:
             self._assert_not_last_owner(org)
+
+        old_snapshot = AuditService.snapshot(membership)
         membership.role = role
-        return MembershipQuery.save(membership, update_fields=["role", "updated_at"])
+        MembershipQuery.save(membership, update_fields=["role", "updated_at"])
+        AuditService.log(
+            user=actor,
+            action=AuditService.UPDATE,
+            entity=membership,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(membership),
+        )
+        return membership
 
     def remove(self, actor, slug: str, user_id) -> None:
         org = OrganizationQuery.get_for_member(slug, actor)
@@ -94,7 +151,12 @@ class MembershipService:
         membership = MembershipQuery.get(org, user_id)
         if membership.role == Role.OWNER:
             self._assert_not_last_owner(org)
+
+        old_snapshot = AuditService.snapshot(membership)
         MembershipQuery.delete(membership)
+        AuditService.log_delete(
+            user=actor, entity=membership, old_value=old_snapshot
+        )
 
     @staticmethod
     def _assert_not_last_owner(org) -> None:
@@ -103,17 +165,30 @@ class MembershipService:
 
 
 class ProjectService:
+    """Audited on every mutation. A project delete takes its flags, segments,
+    and environments with it."""
+
     def create(self, user, slug: str, name: str, key: str = None) -> Project:
         org = OrganizationQuery.get_for_member(slug, user)
         AccessService.assert_can_admin(user, org.id)
-        return ProjectQuery.create(
+        project = ProjectQuery.create(
             organization=org, name=name, key=self._unique_key(key or name)
         )
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE,
+            entity=project,
+            old_value=None,
+            new_value=AuditService.snapshot(project),
+        )
+        return project
 
     def delete(self, user, key: str) -> None:
         project = ProjectQuery.get_for_member(key, user)
         AccessService.assert_can_admin(user, project.organization_id)
+        old_snapshot = AuditService.snapshot(project)
         ProjectQuery.delete(project)
+        AuditService.log_delete(user=user, entity=project, old_value=old_snapshot)
 
     @staticmethod
     def _unique_key(source: str) -> str:

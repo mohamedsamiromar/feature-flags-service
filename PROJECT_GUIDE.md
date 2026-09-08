@@ -444,8 +444,11 @@ once-shown raw key; revoke; atomic rotate; `last_used_at`.
 membership scoping everywhere; three-layer numeric validation; a dedicated rate limit on
 evaluate.
 
-**Observability** — audit trail with before/after snapshots; async evaluation logging via
-Celery with retry/back-off; read-only audit and eval-log APIs.
+**Observability** — audit trail with before/after snapshots covering every mutating
+service (flags, variations, environments, segments, targets, prerequisites, rules, SDK
+keys, organizations, memberships, projects), with credential fields redacted from
+snapshots; async evaluation logging via Celery with retry/back-off; read-only audit and
+eval-log APIs.
 
 **Infra** — `/healthz` DB+Redis probe; env-var config; `CONN_MAX_AGE`; compound indexes;
 Docker Compose; Postman collection.
@@ -456,9 +459,6 @@ Docker Compose; Postman collection.
 
 ## 7. Known rough edges
 
-- **Partial audit coverage.** Flag, variation, environment, segment, target, and
-  prerequisite mutations are audited. **Rule, SDK key, and organization mutations are
-  not** — `AuditService` is only called from `flags/`, `segments/`, and `environment/`.
 - **`FeatureFlag.is_enabled` / `rollout_percentage` are quasi-legacy.** Evaluation reads
   the `EnvironmentFlag` values; these serve as global defaults.
 - **Prerequisite chains cost a cache read each.** One evaluation resolves one cached

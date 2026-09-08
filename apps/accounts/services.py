@@ -18,6 +18,7 @@ have to make three more requests before the API did anything useful.
 from django.db import IntegrityError, transaction
 
 from apps.accounts.queries import UserQuery
+from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
 from apps.environment.models import Environment
 from apps.environment.queries import EnvironmentQuery
@@ -47,7 +48,7 @@ class RegistrationService:
                     name=f"Personal — {username}",
                     slug=OrganizationService._unique_slug(username),
                 )
-                MembershipQuery.create(
+                membership = MembershipQuery.create(
                     organization=organization, user=user, role=Role.OWNER
                 )
                 project = ProjectQuery.create(
@@ -59,6 +60,19 @@ class RegistrationService:
                     EnvironmentQuery.create(project=project, name=name.value)
                     for name in Environment.EnvironmentName
                 ]
+                # Audited like any other org and project creation. Signup is the
+                # one path that builds them without going through
+                # OrganizationService/ProjectService, and an audit invariant
+                # with an exception in it is the one that gets discovered
+                # during an incident.
+                for entity in (organization, membership, project, *environments):
+                    AuditService.log(
+                        user=user,
+                        action=AuditService.CREATE,
+                        entity=entity,
+                        old_value=None,
+                        new_value=AuditService.snapshot(entity),
+                    )
         except IntegrityError:
             # Every unique constraint reachable inside that transaction is
             # derived from the username — the username itself, the org slug

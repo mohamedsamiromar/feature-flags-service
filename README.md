@@ -170,7 +170,7 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 
 ### Observability & audit
 
-- **Audit trail** — flag, variation, environment, segment, target, and prerequisite mutations write an `AuditLog` row with `old_value`/`new_value` JSON snapshots via a central `AuditService`. Rule, SDK key, and organization mutations are not yet audited.
+- **Audit trail** — every mutating service writes an `AuditLog` row with `old_value`/`new_value` JSON snapshots via a central `AuditService`: flags, variations, environments, segments, targets, prerequisites, rules, SDK keys, organizations, memberships, and projects. Rejected writes are not logged — a 409 changed nothing. Credential fields are stripped from snapshots by a model-keyed redaction registry, so an SDK key's hash never leaves its own table.
 - **Evaluation logging** — `POST /sdk/evaluate/` writes an `EvaluationLog` row through a Celery task, so the HTTP response returns without waiting on the DB write. The client bootstrap endpoint deliberately logs **nothing**: it resolves an entire environment, but a bootstrap is a download, not a read, and recording fifty impressions for an app that goes on to use three would inflate a table that has no rollup. Impressions for bootstrapped flags will arrive through the batching endpoint, where the SDK reports what it actually read.
 - **Read-only audit API** — `GET /api/v1/audit/`.
 
@@ -447,7 +447,6 @@ Every app follows the same four layers: **view** (HTTP only), **serializer** (fi
 
 ## Known gaps
 
-- **Partial audit coverage.** Flag, variation, environment, segment, target, and prerequisite mutations are audited. Rule, SDK key, and organization mutations are not.
 - **Bootstrapped flags produce no impression data.** `POST /sdk/flags/evaluate/` writes nothing to `EvaluationLog` by design, and the batching endpoint that would carry those impressions is not built yet. Until it is, flags served through the bootstrap are invisible to `GET /api/v1/evaluation/logs/`.
 - **Bulk download is evaluated, not raw config.** `POST /sdk/flags/evaluate/` returns resolved values for one user context, so an SDK cannot evaluate locally, work offline, or re-resolve a changed context without another request.
 - **Prerequisite chains cost a cache read each on the per-flag endpoint.** `POST /sdk/evaluate/` resolves one cached entry per flag in the chain. No DB queries, but not free for deep chains. The bulk endpoint does not pay this — its preloaded payloads cover the whole environment, gate flags included.
