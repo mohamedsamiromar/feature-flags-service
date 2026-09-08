@@ -1,11 +1,33 @@
 """Query layer for the environment app — the only place with ORM access for
 environments and per-environment flag state."""
 
+from django.db.models import F
+
 from apps.core.errors import APIError, Error
 from apps.environment.models import Environment, EnvironmentFlag
 
 
 class EnvironmentQuery:
+    @staticmethod
+    def bump_config_versions(env_ids) -> None:
+        """Advance `config_version` for every environment in `env_ids`.
+
+        One UPDATE for the whole set, not one per environment: a segment edit
+        fans out to every flag referencing it, and paying a query per flag per
+        environment there would make a cheap write expensive.
+
+        `F("config_version") + 1` rather than a read-then-write, so two
+        concurrent mutations cannot both read version 7 and both store 8 —
+        which would leave an SDK holding a stale payload under a version it
+        believes is current.
+        """
+        env_ids = set(env_ids)
+        if not env_ids:
+            return
+        Environment.objects.filter(pk__in=env_ids).update(
+            config_version=F("config_version") + 1
+        )
+
     @staticmethod
     def get_in_project(pk, project) -> Environment:
         try:

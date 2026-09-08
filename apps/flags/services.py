@@ -471,11 +471,19 @@ class FlagService:
         flags = list(flags)
         if not flags:
             return
+        from apps.environment.queries import EnvironmentQuery
+
         env_ids_by_flag = FlagQuery.env_ids_by_flag(flags)
         for flag in flags:
-            cls._invalidate_env_caches(
+            cls._evict_env_caches(
                 flag.project_id, flag.key, env_ids_by_flag.get(flag.id, [])
             )
+        # One bump for the whole fan-out. Evictions are per flag because each
+        # has its own cache key; the version is per environment, so bumping
+        # inside that loop would issue one UPDATE per flag for a single change.
+        EnvironmentQuery.bump_config_versions(
+            {env_id for ids in env_ids_by_flag.values() for env_id in ids}
+        )
 
     @classmethod
     def invalidate_flag_caches(cls, flag: FeatureFlag) -> None:
@@ -486,8 +494,24 @@ class FlagService:
         """
         cls._invalidate_env_caches(flag.project_id, flag.key, FlagQuery.env_ids_for(flag))
 
+    @classmethod
+    def _invalidate_env_caches(cls, project_id: int, flag_key: str, env_ids) -> None:
+        """Evict one flag's cached copies and advance those environments' versions.
+
+        The two always travel together: a cached payload going stale and an
+        environment's config changing are the same event seen from two sides.
+        Splitting them is how an SDK ends up polling a version that never moves
+        while the server serves something new.
+        """
+        from apps.environment.queries import EnvironmentQuery
+
+        env_ids = list(env_ids)
+        cls._evict_env_caches(project_id, flag_key, env_ids)
+        EnvironmentQuery.bump_config_versions(env_ids)
+
     @staticmethod
-    def _invalidate_env_caches(project_id: int, flag_key: str, env_ids) -> None:
+    def _evict_env_caches(project_id: int, flag_key: str, env_ids) -> None:
+        """Cache eviction only — the caller owns the `config_version` bump."""
         from apps.evaluation.services import FlagEvaluationService
         for env_id in env_ids:
             FlagEvaluationService.invalidate_cache(

@@ -19,6 +19,14 @@ CACHE_TTL = getattr(django_settings, "FLAG_CACHE_TTL", 300)
 # rather than recursing forever and taking the SDK endpoint down with it.
 MAX_PREREQUISITE_DEPTH = 10
 
+# Versions the *shape* of the config-download wire format, independently of
+# `Environment.config_version`, which versions its *contents*. An SDK refuses a
+# format_version it does not know rather than guessing at fields it cannot see.
+# Bump only for a breaking change to the shape, and never in the same release
+# as a behaviour change to the engine — an SDK author needs to be able to tell
+# the two apart.
+CONFIG_FORMAT_VERSION = 1
+
 
 def _variation_dict(variation) -> Optional[dict]:
     """The cached shape of a variation. `id` is carried because prerequisites
@@ -230,6 +238,108 @@ class FlagEvaluationService:
         flag_data = self._build_flag_data(env_flag, rules, segments)
         cache.set(cache_key, flag_data, CACHE_TTL)
         return flag_data
+
+    # ------------------------------------------------------------------
+    # Config download (GET /sdk/flags/config/)
+    # ------------------------------------------------------------------
+
+    def config_for(
+        self, project_id: int, env_id: int, environment_name: str, config_version: int
+    ) -> dict:
+        """The whole environment's ruleset, unevaluated, for in-process SDKs.
+
+        Built from the same `_preload_flag_data` payloads that `evaluate_all`
+        resolves, rather than from a query of its own. That is the point: the
+        config an SDK evaluates locally and the config the server evaluates
+        centrally are literally the same dicts, so the two cannot drift apart
+        through a query that fetched slightly different rows.
+
+        What differs is the wire shape, and each difference is deliberate:
+
+        1. **Segments are lifted to a top-level map.** Each cache entry carries
+           only the segments its own flag references, which is right for a cache
+           (entries stay independent) and wrong for a download — a 50,000-member
+           segment would be repeated once per flag that names it.
+        2. **Sets become sorted arrays.** `SegmentQuery.evaluation_payload`
+           builds Python sets, and `json.dumps` cannot encode one. Sorting also
+           makes the payload byte-stable, so an unchanged config serialises
+           identically across processes.
+        3. **`targets` maps user_key → variation *id*.** The variations are
+           already in the payload; repeating them per target is waste.
+        4. **`format_version` is explicit** — see CONFIG_FORMAT_VERSION.
+
+        Cached whole under a key that includes `config_version`, so it is
+        self-invalidating: a bump changes the key and the old entry expires on
+        its own. No new invalidation call site exists anywhere for this.
+        """
+        cache_key = self._config_cache_key(project_id, env_id, config_version)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        flag_keys = EvaluationQuery.active_flag_keys(project_id, env_id)
+        payloads = self._preload_flag_data(flag_keys, project_id, env_id)
+
+        segments: dict = {}
+        flags: dict = {}
+        # Sorted so the serialised payload is stable for an unchanged config —
+        # a config that reshuffles on every fetch makes the conformance-vector
+        # diff unreadable and defeats any downstream byte comparison.
+        for flag_key in sorted(payloads):
+            flag_data = payloads[flag_key]
+            for key, segment in flag_data.get("segments", {}).items():
+                segments.setdefault(key, self._config_segment(segment))
+            flags[flag_key] = self._config_flag(flag_data)
+
+        config = {
+            "format_version": CONFIG_FORMAT_VERSION,
+            "environment": environment_name,
+            "config_version": config_version,
+            "segments": segments,
+            "flags": flags,
+        }
+        cache.set(cache_key, config, CACHE_TTL)
+        return config
+
+    @staticmethod
+    def _config_segment(segment: dict) -> dict:
+        return {
+            "included": sorted(segment["included"]),
+            "excluded": sorted(segment["excluded"]),
+            "rules": segment["rules"],
+        }
+
+    @staticmethod
+    def _config_flag(flag_data: dict) -> dict:
+        """One flag's public wire shape.
+
+        `id` is dropped: it is the server's primary key, and an SDK addresses
+        flags by key. Variation ids are kept — prerequisites compare variation
+        identity, never value, so an SDK cannot resolve a gate without them.
+        """
+        return {
+            "flag_type": flag_data["flag_type"],
+            "is_enabled": flag_data["is_enabled"],
+            "rollout_percentage": flag_data["rollout_percentage"],
+            "off_variation": flag_data["off_variation"],
+            "fallthrough_variation": flag_data["fallthrough_variation"],
+            "targets": {
+                user_key: variation["id"]
+                for user_key, variation in flag_data.get("targets", {}).items()
+                if variation
+            },
+            "prerequisites": flag_data["prerequisites"],
+            "rules": flag_data["rules"],
+        }
+
+    @staticmethod
+    def _config_cache_key(project_id: int, env_id: int, config_version: int) -> str:
+        """Version-keyed, so it never needs explicit invalidation.
+
+        A `config_version` bump moves the key; the entry under the old version
+        is simply never read again and expires on its own TTL.
+        """
+        return f"config:{project_id}:{env_id}:{config_version}"
 
     @staticmethod
     def _cache_key(project_id: int, env_id: int, flag_key: str) -> str:

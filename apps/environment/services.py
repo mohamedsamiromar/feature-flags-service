@@ -1,5 +1,3 @@
-from django.core.cache import cache
-
 from apps.audit.services import AuditService
 from apps.environment.models import Environment, EnvironmentFlag
 from apps.environment.queries import EnvironmentFlagQuery, EnvironmentQuery
@@ -51,5 +49,19 @@ class EnvironmentFlagService:
 
     @staticmethod
     def _invalidate_cache(env_flag: EnvironmentFlag) -> None:
+        """Evict this env's copy of the flag and advance the env's config version.
+
+        Goes through `FlagEvaluationService.invalidate_cache` rather than
+        formatting the cache key here. Two hand-written copies of that format is
+        how the pre-tenancy version of this code ended up evicting one key while
+        evaluation read another.
+        """
+        from apps.evaluation.services import FlagEvaluationService
+
         env = env_flag.environment
-        cache.delete(f"flags:{env.project_id}:{env.id}:{env_flag.feature_flag.key}")
+        FlagEvaluationService.invalidate_cache(
+            project_id=env.project_id,
+            flag_key=env_flag.feature_flag.key,
+            env_id=env.id,
+        )
+        EnvironmentQuery.bump_config_versions([env.id])

@@ -483,8 +483,9 @@ Docker Compose; Postman collection.
 **Phase 3 — real-time SDK infra** — in progress
 
 - [x] SDK **client bootstrap** — `POST /sdk/flags/evaluate/` (one user context, every flag)
-- [ ] SDK **config download** — `GET /sdk/flags/config/` (raw ruleset, server-side SDKs evaluate
-      in-process). Specified in `SDK_CONFIG_SPEC.md`
+- [x] SDK **config download** — `GET /sdk/flags/config/` (raw ruleset, server-side SDKs evaluate
+      in-process), with `Environment.config_version` ETags, `304` on an unchanged poll, server
+      keys only, and generated conformance vectors. Specified in `SDK_CONFIG_SPEC.md`
 - [ ] Impression **batching** endpoint (bulk eval-log ingest from an SDK)
 - [ ] **SSE streaming** — push flag updates to connected SDKs (builds on `config_version`)
 

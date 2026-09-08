@@ -145,6 +145,10 @@ REST_FRAMEWORK = {
         # Signup is anonymous and each success writes a user, an organization,
         # a membership, a project, and three environments. Tighter than `anon`.
         "registration": os.getenv("THROTTLE_RATE_REGISTRATION", "10/hour"),
+        # Config download is polled, not called per user, and a 304 costs
+        # almost nothing. A 30s poll is 120/hour, so this leaves generous room
+        # for several processes sharing one key.
+        "config_download": os.getenv("THROTTLE_RATE_CONFIG_DOWNLOAD", "600/hour"),
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,

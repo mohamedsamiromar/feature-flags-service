@@ -1,6 +1,6 @@
 # SDK Config Download — Specification
 
-**Status:** Draft. Not implemented. Phase 3, item 1b.
+**Status:** Implemented. Phase 3, item 1b.
 **Endpoint:** `GET /api/v1/sdk/flags/config/`
 **Supersedes nothing** — it sits alongside `POST /api/v1/sdk/flags/evaluate/`.
 
@@ -289,31 +289,45 @@ correct default until someone needs it.
 
 ---
 
-## 8. Implementation sketch
+## 8. How it is built
 
 Follows the existing four-layer split; no new app.
 
 | Layer | Change |
 |---|---|
 | `apps/environment/models.py` | `Environment.config_version` + migration |
-| `apps/flags/services.py` | Bump `config_version` in the two `invalidate_*_caches` methods |
-| `apps/evaluation/queries.py` | `EvaluationQuery.config_payload(project_id, env_id)` — flags + env state + rules + targets + prerequisites + **all** referenced segments, bulk-loaded (reuse the `get_active_env_flags` prefetch shape) |
-| `apps/evaluation/services.py` | `FlagEvaluationService.config_for(project_id, env_id)` — normalize segments, sets → arrays, targets → id map |
+| `apps/environment/queries.py` | `EnvironmentQuery.bump_config_versions(env_ids)` — one `F()` UPDATE for the whole set |
+| `apps/flags/services.py` | `_invalidate_env_caches` evicts *and* bumps; `_evict_env_caches` split out so a fan-out bumps once, not once per flag |
+| `apps/environment/services.py` | `EnvironmentFlagService._invalidate_cache` routed through the same pair instead of formatting the cache key itself |
+| `apps/evaluation/services.py` | `FlagEvaluationService.config_for(...)` — normalize segments, sets → arrays, targets → id map |
 | `apps/sdk_keys/permissions.py` | `HasServerSDKKey` |
 | `apps/sdk/serializers.py` | `SDKConfigResponseSerializer` |
-| `apps/sdk/views.py` | `SDKConfigView` — `GET`, ETag / `If-None-Match`, own throttle scope `config_download` |
+| `apps/sdk/views.py` | `SDKConfigView` — `GET`, ETag / `If-None-Match` (weak validators and lists included), own throttle scope `config_download` |
 | `apps/sdk/urls.py` | `path("flags/config/", ...)` |
-| management command | `generate_conformance_vectors` |
+| `apps/evaluation/conformance.py` | The fixture and the vector generator |
+| management command | `generate_conformance_vectors` (`--check` runs in CI) |
 
-**Caching.** Cache the whole serialized payload under
+**No dedicated query.** `config_for` builds the payload from the same
+`_preload_flag_data` map that `evaluate_all` resolves, rather than from a query
+of its own. That is the point, and it is stronger than the original sketch's
+`EvaluationQuery.config_payload`: the config an SDK evaluates locally and the
+config the server evaluates centrally are literally the same dicts, so they
+cannot drift apart through a second query that fetched slightly different rows.
+It also means the download reuses the warm flag cache instead of competing with it.
+
+**One bump site, not two.** The sketch said "the two `invalidate_*_caches`
+methods". There were three places that evicted a flag cache — the third was
+`EnvironmentFlagService`, formatting the cache key by hand. All of them now
+funnel through `_invalidate_env_caches`, which evicts and bumps together. Keeping
+them together is the whole contract: an SDK polling a version that never moves
+while the server serves something new is worse than no versioning at all.
+
+**Caching.** The whole serialized payload is cached under
 `config:{project_id}:{env_id}:{config_version}`. Keying by version makes it
 self-invalidating: a bump changes the key, and the old entry expires on its own.
 No new invalidation call sites.
 
-**Response size.** Uncapped today and this payload is bigger than the bootstrap's.
-A 50,000-member segment is a multi-megabyte array. Before shipping: gzip, and
-decide what happens past a size ceiling. Options are a documented cap, or
-excluding oversized segments and marking them server-eval-only. Unresolved — §9.2.
+**Response size.** Uncapped, deliberately — see §9.2.
 
 ---
 
@@ -334,9 +348,32 @@ server does it as well, so a non-numeric rule `value` is a 400 at authoring time
 rather than a rule that silently matches nobody. SDKs need not replicate that
 check — they never see an unvalidated rule.
 
-### 9.2 Response size ceiling
+### 9.2 Response size ceiling — **settled 2026-09-08**
 
-Unresolved. See §8.
+Resolved as **no ceiling, and never a silent exclusion.**
+
+Dropping an oversized segment from the payload was the tempting option and is
+the wrong one. A rule naming a segment the SDK cannot find fails closed (§4.5),
+so excluding a 50,000-member segment does not degrade gracefully — it silently
+turns the flag off for everyone that segment was letting in. A size limit that
+changes who gets a feature is not a size limit.
+
+Refusing the whole request past a ceiling was rejected too: it takes an
+environment that works today and breaks it on the request *after* someone adds
+a target, with no way for the SDK to recover on its own.
+
+So the payload is served whole, and the mitigations are operational:
+
+- **Compression belongs at the reverse proxy**, not in Django. Django's
+  `GZipMiddleware` is global, and this API has responses that reflect
+  caller-supplied input next to a credential — `POST /auth/register/` echoes the
+  submitted username in a body that also carries a JWT pair, which is the exact
+  BREACH shape. Compressing that to save bytes on a different endpoint is a bad
+  trade. Configure gzip for `/api/v1/sdk/flags/config/` at the edge.
+- **A large payload is a signal, not a failure.** An environment whose config
+  runs to megabytes is one where segment membership is being used as a user
+  database. The `client-visible` follow-up in §7, or evaluating server-side via
+  `POST /sdk/flags/evaluate/`, is the answer there — not a truncated ruleset.
 
 ### 9.3 Does the config download log anything?
 
@@ -345,7 +382,13 @@ served to anyone yet. Impressions for locally-evaluated flags arrive through the
 batching endpoint (Phase 3, item 2). This is the same reasoning that removed
 impression logging from the bootstrap endpoint.
 
-### 9.4 Polling interval guidance
+### 9.4 Polling interval guidance — **settled 2026-09-08**
 
-`304` makes polling cheap, but a documented default (30s?) and a `Cache-Control`
-header would stop every SDK inventing its own.
+**30 seconds**, advertised by the endpoint itself as
+`Cache-Control: max-age=30, private` on both the `200` and the `304`
+(`SDKConfigView.POLL_INTERVAL_SECONDS`). Advisory — the `304` is what makes
+polling cheap, not the header — but it means every SDK reads the interval off
+the wire instead of picking one.
+
+`private` because the payload is scoped to a single key's environment and must
+never be held in a shared cache.
