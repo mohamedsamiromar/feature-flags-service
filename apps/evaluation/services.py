@@ -7,6 +7,7 @@ from django.core.cache import cache
 
 from apps.core.errors import APIError
 from apps.evaluation.queries import EvaluationQuery
+from apps.evaluation.tasks import log_evaluations
 from apps.rules.models import Operator
 from apps.segments.queries import SegmentQuery
 from apps.targeting.services import RuleEvaluator
@@ -238,6 +239,55 @@ class FlagEvaluationService:
         flag_data = self._build_flag_data(env_flag, rules, segments)
         cache.set(cache_key, flag_data, CACHE_TTL)
         return flag_data
+
+    # ------------------------------------------------------------------
+    # Impression ingest (POST /sdk/impressions/)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def record_impressions(project_id: int, env_id: int, impressions: list) -> dict:
+        """Queue a batch of locally-evaluated impressions and report what stuck.
+
+        The counterpart to the config download. An SDK that evaluates in-process
+        never touches `POST /sdk/evaluate/`, so nothing it serves would otherwise
+        appear in `EvaluationLog` at all — flags evaluated locally would be
+        invisible to the very dashboards the engine writes that table for.
+
+        **The server records what the SDK says it served; it does not re-derive
+        it.** Re-evaluating each impression here would cost exactly what local
+        evaluation was meant to save, and would still not be authoritative — the
+        config may have changed since the SDK served it. This is inherent to
+        local evaluation, and the conformance vectors are what make the reported
+        values trustworthy.
+
+        Unknown flag keys are dropped rather than failing the batch, and are
+        named in the return value. An SDK holding a config from before a flag
+        was archived would otherwise never flush again — one stale key would
+        reject every future request, losing the impressions either side of it.
+        """
+        flag_ids = EvaluationQuery.flag_ids_by_key(
+            [impression["flag_key"] for impression in impressions],
+            project_id,
+            env_id,
+        )
+
+        accepted, dropped = [], set()
+        for impression in impressions:
+            flag_id = flag_ids.get(impression["flag_key"])
+            if flag_id is None:
+                dropped.add(impression["flag_key"])
+                continue
+            accepted.append({
+                "flag_id": flag_id,
+                "result": impression["result"],
+                "context_data": impression.get("user_context", {}),
+            })
+
+        if accepted:
+            # No user behind an SDK request — the key is the principal.
+            log_evaluations.delay(evaluations=accepted, user_id=None)
+
+        return {"accepted": len(accepted), "dropped": sorted(dropped)}
 
     # ------------------------------------------------------------------
     # Config download (GET /sdk/flags/config/)

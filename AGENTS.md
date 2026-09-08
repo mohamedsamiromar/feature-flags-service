@@ -219,6 +219,9 @@ Do not write new operators that coerce types without deciding what a failed coer
 
 ### Impressions are reads, not downloads
 
+`POST /sdk/impressions/` is where locally-evaluated flags reach `EvaluationLog`. Its `user_context` is per impression, never per batch — a server SDK's flush spans many users, and a shared context would force one request each. Unknown flag keys are dropped and named in `dropped`; never make one stale key reject a batch, or an SDK holding a slightly old config can never flush again.
+
+
 `POST /sdk/flags/evaluate/` resolves every flag in an environment and logs **none** of them. A bootstrap is a download; the app may go on to read three of fifty, and writing all fifty to `EvaluationLog` — which has no rollup — records fetches nobody consumed. `POST /sdk/evaluate/` still logs, because it genuinely serves one flag to one caller.
 
 Do not "restore" logging to the bootstrap endpoint. Impressions for those flags belong to the batching endpoint (Phase 3, item 2), where the SDK reports what it actually used. `TestBulkImpressionLogging` fails if a task is dispatched or a row is written.
@@ -286,8 +289,8 @@ See `README.md` → Roadmap and `PROJECT_GUIDE.md` §8 for the full checklist.
 
 - ✅ SDK client bootstrap — `POST /sdk/flags/evaluate/` (one user context, every flag)
 - ✅ SDK config download — `GET /sdk/flags/config/` (raw ruleset for server-side SDKs). See `SDK_CONFIG_SPEC.md`
-- Impression batching endpoint (bulk eval-log ingest from an SDK)
-- SSE streaming of flag updates
+- ✅ Impression batching — `POST /sdk/impressions/`
+- SSE streaming of flag updates — blocked on ASGI, not on features. Under WSGI each open stream holds a worker thread; `config_version` polling covers the gap.
 
 **The two bulk endpoints are not alternatives.** The bootstrap endpoint costs one round trip per *user context* — right for a browser SDK (one user per session), wrong for a server-side SDK evaluating thousands of users per process. That is what the config download is for.
 

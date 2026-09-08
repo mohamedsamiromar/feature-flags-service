@@ -149,6 +149,9 @@ REST_FRAMEWORK = {
         # almost nothing. A 30s poll is 120/hour, so this leaves generous room
         # for several processes sharing one key.
         "config_download": os.getenv("THROTTLE_RATE_CONFIG_DOWNLOAD", "600/hour"),
+        # Impressions are flushed in batches of up to 1,000, so a generous
+        # request budget still bounds the row count an SDK can queue.
+        "impressions": os.getenv("THROTTLE_RATE_IMPRESSIONS", "600/minute"),
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,

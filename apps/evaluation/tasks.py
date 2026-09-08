@@ -49,14 +49,21 @@ def log_evaluation(*, flag_id: int, user_id: int | None, result: Any, context_da
     retry_kwargs={"max_retries": 3},
     ignore_result=True,
 )
-def log_evaluations(*, evaluations: list, user_id: int | None, context_data: dict) -> None:
+def log_evaluations(*, evaluations: list, user_id: int | None) -> None:
     """
     Persist a batch of flag evaluations in one insert.
 
-    The ingest primitive for the impression-batching endpoint (Phase 3, item 2),
-    where an SDK reports the flags it actually read. Dispatching
-    `log_evaluation` per flag would queue N tasks and run N inserts for one
-    HTTP request; this takes the whole batch.
+    The ingest primitive for `POST /sdk/impressions/`, where an SDK that
+    evaluated locally reports what it actually served. Dispatching
+    `log_evaluation` per impression would queue N tasks and run N inserts for
+    one HTTP request; this takes the whole batch.
+
+    Each record carries its own `context_data` rather than the batch sharing
+    one. A server-side SDK flushing impressions has evaluated many *users*
+    since the last flush, so one context per batch would force one request per
+    user and give back the round trips this endpoint exists to save. The rows
+    are unchanged either way — `EvaluationLog.context_data` was always per
+    row — so the cost is message size, not storage.
 
     NOT wired to `POST /sdk/flags/evaluate/`. That endpoint resolves every flag
     in an environment, but a bootstrap is a download, not a read — logging all
@@ -64,15 +71,13 @@ def log_evaluations(*, evaluations: list, user_id: int | None, context_data: dic
     consumed. See `SDKEvaluateAllFlagsView`.
 
     Args:
-        evaluations:  ``[{"flag_id": int, "result": <JSON value>}, ...]``.
-                      Scalars and JSON values only — NEVER the cached flag
-                      config, which contains Python sets that this task's json
-                      serializer cannot encode.
+        evaluations:  ``[{"flag_id": int, "result": <JSON value>,
+                          "context_data": dict}, ...]``.
+                      Scalars, dicts, and JSON values only — NEVER the cached
+                      flag config, which contains Python sets that this task's
+                      json serializer cannot encode.
         user_id:      Primary key of the requesting user (None for SDK calls,
                       where the key is the principal).
-        context_data: The user_context the batch was evaluated against. One
-                      dict for the batch: every flag in it saw the same
-                      context.
     """
     from apps.evaluation.models import EvaluationLog
 
@@ -84,7 +89,7 @@ def log_evaluations(*, evaluations: list, user_id: int | None, context_data: dic
             flag_id=evaluation["flag_id"],
             user_id=user_id,
             result=evaluation["result"],
-            context_data=context_data,
+            context_data=evaluation.get("context_data", {}),
         )
         for evaluation in evaluations
     ])

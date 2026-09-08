@@ -425,7 +425,49 @@ digest as bytes rather than a hex integer fails immediately instead of on 3% of
 production traffic. An SDK is conformant when it reproduces every case.
 
 **No impression logging.** A config fetch is not an evaluation — nothing has
-been served to anyone yet.
+been served to anyone yet. Impressions arrive separately, below.
+
+### SDK impressions
+
+`POST /api/v1/sdk/impressions/` is how flags resolved *without* asking the
+server reach `EvaluationLog`. An SDK working from the config download never
+calls `POST /sdk/evaluate/`, and the bootstrap endpoint deliberately logs
+nothing, so without this every locally-evaluated flag would be invisible to
+`GET /api/v1/evaluation/logs/`.
+
+```json
+{
+  "impressions": [
+    { "flag_key": "dark-mode",    "result": true,  "user_context": {"user_id": "u_1"} },
+    { "flag_key": "new-checkout", "result": false, "user_context": {"user_id": "u_2"} }
+  ]
+}
+```
+
+```json
+{ "accepted": 2, "dropped": [] }
+```
+
+**Context is per impression, not per batch.** A server SDK flushing has served
+many users since the last flush; one context per request would give back the
+round trips this endpoint exists to save. The rows are unchanged either way —
+`context_data` was always per row.
+
+**Unknown flag keys are dropped, not rejected.** They come back in `dropped` so
+the SDK can stop sending them. Failing the batch instead would mean one stale
+key — a flag archived after the SDK last fetched its config — rejects every
+future flush, losing the impressions on either side of it.
+
+**`202`, not `201`.** The rows are written by a Celery worker, so the response
+confirms the batch was queued, not that it is queryable yet. Batches are capped
+at 1,000 impressions; resolving their flag keys costs one query regardless of
+batch size.
+
+**The server records what the SDK reports; it does not re-derive it.**
+Re-evaluating each impression would cost exactly what local evaluation saves,
+and still would not be authoritative — the config may have moved since. That is
+inherent to evaluating off-server, and the conformance vectors are what make the
+reported values trustworthy.
 
 ### Targeting examples
 
@@ -523,7 +565,6 @@ Every app follows the same four layers: **view** (HTTP only), **serializer** (fi
 
 ## Known gaps
 
-- **Bootstrapped flags produce no impression data.** `POST /sdk/flags/evaluate/` writes nothing to `EvaluationLog` by design, and the batching endpoint that would carry those impressions is not built yet. Until it is, flags served through the bootstrap are invisible to `GET /api/v1/evaluation/logs/`.
 - **Prerequisite chains cost a cache read each on the per-flag endpoint.** `POST /sdk/evaluate/` resolves one cached entry per flag in the chain. No DB queries, but not free for deep chains. The bulk endpoint does not pay this — its preloaded payloads cover the whole environment, gate flags included.
 - **No benchmarks.** Nothing in this repo measures throughput, latency, or cache hit rate. Any performance characteristics are unmeasured.
 - **No OpenAPI schema.** Use the Postman collection.
@@ -601,12 +642,13 @@ A variation must hold a boolean, string, number, or arbitrary JSON object. `JSON
 - Prerequisite flags
 - SDK client bootstrap (`POST /sdk/flags/evaluate/`) — every flag in an environment resolved for one user context
 - SDK config download (`GET /sdk/flags/config/`) — the raw ruleset for in-process SDKs, with `config_version` ETags and generated conformance vectors
+- Impression batching (`POST /sdk/impressions/`) — locally-evaluated flags reported back in bulk
 - Self-serve registration, provisioning a personal organization, project, and environments
 - Audit coverage across every mutating service, with credential redaction
 
 **Not built:**
 
-- **SDK infrastructure** — impression batching (bulk ingest of eval logs from an SDK), SSE streaming of flag updates.
+- **SSE streaming of flag updates.** `config_version` already makes it tractable — a stream event carries the new version and the SDK re-fetches. What is missing is the deployment model: this project runs under WSGI, where every open SSE connection holds a worker thread for its lifetime, so a handful of connected SDKs would exhaust the pool. It needs an ASGI server, which is a deployment change rather than a feature. Until then, `If-None-Match` polling at the advertised 30s is the refresh path, and a `304` costs a version read.
 - **Workflow** — stale flag detection, scheduled changes, webhooks, approval workflows.
 - **Analytics** — impression aggregation, data export.
 - **Experimentation** — A/B testing framework, statistical significance reporting.

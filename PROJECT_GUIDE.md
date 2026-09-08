@@ -486,8 +486,12 @@ Docker Compose; Postman collection.
 - [x] SDK **config download** — `GET /sdk/flags/config/` (raw ruleset, server-side SDKs evaluate
       in-process), with `Environment.config_version` ETags, `304` on an unchanged poll, server
       keys only, and generated conformance vectors. Specified in `SDK_CONFIG_SPEC.md`
-- [ ] Impression **batching** endpoint (bulk eval-log ingest from an SDK)
-- [ ] **SSE streaming** — push flag updates to connected SDKs (builds on `config_version`)
+- [x] Impression **batching** — `POST /sdk/impressions/` (bulk ingest of flags an SDK
+      resolved locally; unknown keys dropped and reported, not rejected)
+- [ ] **SSE streaming** — deferred, and not for want of `config_version`, which already
+      makes it tractable. It needs ASGI: under WSGI each open stream holds a worker
+      thread for its lifetime. `If-None-Match` polling at the advertised 30s is the
+      refresh path until the deployment model changes.
 
 **Phase 4 — workflow & governance**
 

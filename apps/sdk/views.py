@@ -7,6 +7,8 @@ from apps.evaluation.services import FlagEvaluationService
 from apps.evaluation.tasks import log_evaluation
 from apps.sdk.serializers import (
     SDKConfigResponseSerializer,
+    SDKImpressionBatchSerializer,
+    SDKImpressionResponseSerializer,
     SDKEvaluateAllRequestSerializer,
     SDKEvaluateAllResponseSerializer,
     SDKEvaluateRequestSerializer,
@@ -219,3 +221,52 @@ class SDKConfigView(APIView):
             for candidate in if_none_match.split(",")
         }
         return etag in candidates
+
+
+class SDKImpressionsView(APIView):
+    """
+    POST /api/v1/sdk/impressions/
+    Header: X-SDK-Key: sdk_srv_<token> or sdk_cli_<token>
+
+    Body: { "impressions": [
+        { "flag_key": "dark-mode", "result": true,
+          "user_context": {"user_id": "u_1"} }
+    ] }
+
+    Bulk impression ingest, for flags an SDK resolved without asking the server.
+
+    Without it, local evaluation is invisible. An SDK working from
+    `GET /sdk/flags/config/` never calls `POST /sdk/evaluate/`, so nothing it
+    serves reaches `EvaluationLog` — and the same is true of every flag pulled
+    through the bootstrap endpoint, which deliberately logs nothing. This is
+    where those impressions arrive.
+
+    Accepts both key types. A browser SDK bootstrapping a session has the same
+    problem as a server SDK evaluating locally: it read flags the server has no
+    record of serving.
+
+    `202`, not `201`: the rows are written by a Celery worker, so what the
+    response confirms is that the batch was queued, not that it is queryable.
+    """
+
+    authentication_classes = [SDKKeyAuthentication]
+    permission_classes = [HasSDKKey]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "impressions"
+
+    def post(self, request):
+        sdk_key = request.auth
+
+        serializer = SDKImpressionBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        result = _eval_service.record_impressions(
+            project_id=sdk_key.environment.project_id,
+            env_id=sdk_key.environment_id,
+            impressions=serializer.validated_data["impressions"],
+        )
+
+        return Response(
+            SDKImpressionResponseSerializer(result).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
