@@ -40,6 +40,8 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "rest_framework_simplejwt",
+    # Records rotated and logged-out refresh tokens so they stop working.
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
 
     "apps.core",
@@ -166,7 +168,10 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(os.getenv("JWT_ACCESS_MINUTES", "60"))),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("JWT_REFRESH_DAYS", "7"))),
     "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": False,
+    # Without this, rotation issues a new refresh token but leaves the old one
+    # valid for its full lifetime — a leaked token keeps minting access tokens
+    # however often the real client refreshes.
+    "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
