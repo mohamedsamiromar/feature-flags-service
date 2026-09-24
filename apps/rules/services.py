@@ -1,7 +1,8 @@
+from apps.audit.services import AuditService
 from apps.flags.services import FlagService
 from apps.organizations.services import AccessService
 from apps.core.errors import APIError, Error
-from apps.rules.models import Operator, Rule
+from apps.rules.models import Operator, Rule, to_number
 from apps.rules.queries import RuleQuery
 from apps.segments.queries import SegmentQuery
 
@@ -14,6 +15,11 @@ class RuleService:
     write to any flag PK), and invalidates the flag's cached targeting config on
     every mutation. A flag in a project the caller is not a member of surfaces
     as a 404; a member without write role gets a 403.
+
+    Every mutation is audited. A rule is the part of a flag that decides *who*
+    gets it, so "the rollout changed at 03:00 and nobody knows why" is exactly
+    the question the audit trail exists to answer — a flag whose own record is
+    complete but whose targeting is not tells only half the story.
     """
 
     def create(self, user, validated_data: dict) -> Rule:
@@ -21,8 +27,16 @@ class RuleService:
         self._assert_flag_writable(flag, user)
         self._assert_segment_exists(flag, validated_data)
         self._assert_attribute_present(validated_data)
+        self._assert_numeric_value(validated_data)
         rule = RuleQuery.create(**validated_data)
         FlagService.invalidate_flag_caches(rule.flag)
+        AuditService.log(
+            user=user,
+            action=AuditService.CREATE,
+            entity=rule,
+            old_value=None,
+            new_value=AuditService.snapshot(rule),
+        )
         return rule
 
     def update(self, user, rule: Rule, validated_data: dict) -> Rule:
@@ -30,17 +44,29 @@ class RuleService:
         self._assert_flag_writable(flag, user)
         self._assert_segment_exists(flag, validated_data, current=rule)
         self._assert_attribute_present(validated_data, current=rule)
+        self._assert_numeric_value(validated_data, current=rule)
+
+        old_snapshot = AuditService.snapshot(rule)
         for attr, value in validated_data.items():
             setattr(rule, attr, value)
         RuleQuery.save(rule)
         FlagService.invalidate_flag_caches(rule.flag)
+        AuditService.log(
+            user=user,
+            action=AuditService.UPDATE,
+            entity=rule,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(rule),
+        )
         return rule
 
     def delete(self, user, rule: Rule) -> None:
         self._assert_flag_writable(rule.flag, user)
         flag = rule.flag  # unreachable after delete
+        old_snapshot = AuditService.snapshot(rule)
         RuleQuery.delete(rule)
         FlagService.invalidate_flag_caches(flag)
+        AuditService.log_delete(user=user, entity=rule, old_value=old_snapshot)
 
     @staticmethod
     def _assert_flag_writable(flag, user) -> None:
@@ -77,3 +103,24 @@ class RuleService:
         attribute = validated_data.get("attribute", current.attribute if current else "")
         if not attribute:
             raise APIError(Error.REQUIRED_FIELD)
+
+    @staticmethod
+    def _assert_numeric_value(validated_data: dict, current: Rule = None) -> None:
+        """`gt`/`lt` compare numbers, so the authored `value` must be one.
+
+        Evaluation fails closed on an operand that will not coerce, so
+        `age gt "eighteen"` no longer crashes — but left unchecked it would
+        match nobody, forever, with nothing to show why. Rejecting it at write
+        time is the same reasoning as `_assert_segment_exists`: a typo must not
+        become a rule that quietly does nothing.
+
+        The check runs against the rule as it will be *after* the write, so
+        editing a `gt` rule's priority does not sneak past it.
+        """
+        operator = validated_data.get("operator", current.operator if current else None)
+        if operator not in Operator.numeric_operators():
+            return
+
+        value = validated_data.get("value", current.value if current else None)
+        if to_number(value) is None:
+            raise APIError(Error.NON_NUMERIC_COMPARISON, extra=[operator, value])

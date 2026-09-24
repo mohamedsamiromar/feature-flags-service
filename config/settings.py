@@ -142,6 +142,16 @@ REST_FRAMEWORK = {
         # Bulk evaluation resolves every flag in an environment per call,
         # so it gets a tighter budget than the single-flag endpoint.
         "evaluation_bulk": os.getenv("THROTTLE_RATE_EVALUATION_BULK", "120/minute"),
+        # Signup is anonymous and each success writes a user, an organization,
+        # a membership, a project, and three environments. Tighter than `anon`.
+        "registration": os.getenv("THROTTLE_RATE_REGISTRATION", "10/hour"),
+        # Config download is polled, not called per user, and a 304 costs
+        # almost nothing. A 30s poll is 120/hour, so this leaves generous room
+        # for several processes sharing one key.
+        "config_download": os.getenv("THROTTLE_RATE_CONFIG_DOWNLOAD", "600/hour"),
+        # Impressions are flushed in batches of up to 1,000, so a generous
+        # request budget still bounds the row count an SDK can queue.
+        "impressions": os.getenv("THROTTLE_RATE_IMPRESSIONS", "600/minute"),
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,

@@ -99,7 +99,7 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 
 - **Flag CRUD** — flags identified by a human-readable `key` (e.g. `dark-mode`), unique per project. The key is fixed at creation: it addresses SDK calls, cache entries, and every version snapshot, so changing it would break live integrations.
 - **Percentage rollout** — SHA-256 deterministic bucket assignment.
-- **Rule-based targeting** — ordered rules with operators `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`, `in_segment`, `not_in_segment`.
+- **Rule-based targeting** — ordered rules with operators `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`, `in_segment`, `not_in_segment`. `gt`/`lt` compare numerically and match nobody when an operand is not a number; a non-numeric rule value is rejected at write time.
 - **Redis caching** — flag config, rules, targets, segments, and prerequisites cached per `(project, environment, key)`, invalidated on every mutation that could change an answer.
 - **One-call toggle** — `POST /flags/{key}/toggle/` with `{"environment": "production"}` flips that environment's kill switch, invalidates the cache, and writes an audit entry. The per-environment state is created on first toggle (off by default, so the first call turns the flag on).
 
@@ -170,7 +170,7 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 
 ### Observability & audit
 
-- **Audit trail** — flag, variation, environment, segment, target, and prerequisite mutations write an `AuditLog` row with `old_value`/`new_value` JSON snapshots via a central `AuditService`. Rule, SDK key, and organization mutations are not yet audited.
+- **Audit trail** — every mutating service writes an `AuditLog` row with `old_value`/`new_value` JSON snapshots via a central `AuditService`: flags, variations, environments, segments, targets, prerequisites, rules, SDK keys, organizations, memberships, and projects. Rejected writes are not logged — a 409 changed nothing. Credential fields are stripped from snapshots by a model-keyed redaction registry, so an SDK key's hash never leaves its own table.
 - **Evaluation logging** — `POST /sdk/evaluate/` writes an `EvaluationLog` row through a Celery task, so the HTTP response returns without waiting on the DB write. The client bootstrap endpoint deliberately logs **nothing**: it resolves an entire environment, but a bootstrap is a download, not a read, and recording fifty impressions for an app that goes on to use three would inflate a table that has no rollup. Impressions for bootstrapped flags will arrive through the batching endpoint, where the SDK reports what it actually read.
 - **Read-only audit API** — `GET /api/v1/audit/`.
 
@@ -190,6 +190,7 @@ Import the [Postman collection](feature_flags.postman_collection.json) to explor
 Flags, environments, and segments are addressed under their project.
 
 ```text
+POST   /api/v1/auth/register/                        Create an account + personal org, project, envs
 POST   /api/v1/auth/token/                           Obtain access + refresh token
 POST   /api/v1/auth/token/refresh/                   Rotate access token
 
@@ -350,6 +351,124 @@ Measured flat at 9 queries for 1, 2, 5, 20, and 50 flags on a cold cache, and
 exactly 1 query on a warm one. Archived flags, and flags not configured in this
 environment, are omitted rather than reported as errors.
 
+### SDK config download
+
+`GET /api/v1/sdk/flags/config/` returns the environment's whole ruleset,
+**unevaluated**, for a server-side SDK that evaluates in-process. Full wire
+format and the normative evaluation contract: [SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md).
+
+This is not an alternative to the bulk endpoint above — it is the opposite cost
+profile. The bootstrap costs one round trip per *user context*, which is right
+for a browser (one user per session) and wrong for a server SDK calling
+`variation(flag, user)` for thousands of users inside its own request path. The
+download moves that cost to one round trip per *config change*.
+
+```http
+GET /api/v1/sdk/flags/config/
+X-SDK-Key: sdk_srv_<token>
+If-None-Match: "4127"
+```
+
+```json
+{
+  "format_version": 1,
+  "environment": "production",
+  "config_version": 4127,
+  "segments": {
+    "beta": {
+      "included": ["alice"],
+      "excluded": ["carol"],
+      "rules": [{ "attribute": "plan", "operator": "eq", "value": "pro" }]
+    }
+  },
+  "flags": {
+    "dark-mode": {
+      "flag_type": "boolean",
+      "is_enabled": true,
+      "rollout_percentage": 20,
+      "off_variation":         { "id": 18, "value": false, "value_type": "boolean" },
+      "fallthrough_variation": { "id": 17, "value": true,  "value_type": "boolean" },
+      "targets": { "dave": 18 },
+      "prerequisites": [{ "flag_key": "gate", "required_variation_id": 9 }],
+      "rules": [
+        { "id": 55, "attribute": "country", "operator": "eq", "value": "EG",
+          "priority": 1, "rollout_percentage": 50,
+          "serve_variation": { "id": 17, "value": true, "value_type": "boolean" } }
+      ]
+    }
+  }
+}
+```
+
+**Server keys only — a client key gets `403`.** Every other SDK endpoint accepts
+both. This payload contains `targets` and segment membership lists, which in
+practice hold real identifiers; `sdk_cli_` keys ship to browsers, so serving it
+to one would publish the customer's user list.
+
+**`config_version` is the ETag.** It advances on every write that changes what a
+flag serves, at the same chokepoint that evicts the flag cache. A polling SDK
+sends `If-None-Match` and gets a `304` with an empty body until something
+actually changes — which is what makes the recommended 30s poll cheap. The
+interval is advertised back as `Cache-Control: max-age=30, private`.
+
+**Conformance vectors, because local evaluation is the risk.** Shipping the
+ruleset means every SDK reimplements bucketing, rule precedence, segment
+membership, and prerequisite resolution — and any divergence serves the wrong
+value to real users, silently.
+[`sdk_conformance_vectors.json`](sdk_conformance_vectors.json) is the contract:
+a config plus ~1,000 cases with the engine's own answers, generated by
+`manage.py generate_conformance_vectors` and re-checked in CI. It pins every
+operator, both directions of individual targeting, first-match-wins rule
+ordering, the three ways a prerequisite can fail, every fail-closed case, and a
+thousand-user rollout partition dense enough that an SDK reading the SHA-256
+digest as bytes rather than a hex integer fails immediately instead of on 3% of
+production traffic. An SDK is conformant when it reproduces every case.
+
+**No impression logging.** A config fetch is not an evaluation — nothing has
+been served to anyone yet. Impressions arrive separately, below.
+
+### SDK impressions
+
+`POST /api/v1/sdk/impressions/` is how flags resolved *without* asking the
+server reach `EvaluationLog`. An SDK working from the config download never
+calls `POST /sdk/evaluate/`, and the bootstrap endpoint deliberately logs
+nothing, so without this every locally-evaluated flag would be invisible to
+`GET /api/v1/evaluation/logs/`.
+
+```json
+{
+  "impressions": [
+    { "flag_key": "dark-mode",    "result": true,  "user_context": {"user_id": "u_1"} },
+    { "flag_key": "new-checkout", "result": false, "user_context": {"user_id": "u_2"} }
+  ]
+}
+```
+
+```json
+{ "accepted": 2, "dropped": [] }
+```
+
+**Context is per impression, not per batch.** A server SDK flushing has served
+many users since the last flush; one context per request would give back the
+round trips this endpoint exists to save. The rows are unchanged either way —
+`context_data` was always per row.
+
+**Unknown flag keys are dropped, not rejected.** They come back in `dropped` so
+the SDK can stop sending them. Failing the batch instead would mean one stale
+key — a flag archived after the SDK last fetched its config — rejects every
+future flush, losing the impressions on either side of it.
+
+**`202`, not `201`.** The rows are written by a Celery worker, so the response
+confirms the batch was queued, not that it is queryable yet. Batches are capped
+at 1,000 impressions; resolving their flag keys costs one query regardless of
+batch size.
+
+**The server records what the SDK reports; it does not re-derive it.**
+Re-evaluating each impression would cost exactly what local evaluation saves,
+and still would not be authoritative — the config may have moved since. That is
+inherent to evaluating off-server, and the conformance vectors are what make the
+reported values trustworthy.
+
 ### Targeting examples
 
 Pin one user into a flag regardless of rules or rollout:
@@ -446,14 +565,7 @@ Every app follows the same four layers: **view** (HTTP only), **serializer** (fi
 
 ## Known gaps
 
-- **No self-serve registration.** There is no `POST /api/v1/auth/register/`; users are created via `createsuperuser` or the admin.
-- **Compose stores no data.** Neither `db` nor `redis` declares a volume, so `docker compose down` destroys the database. Fine for local development; not usable as-is for a real deployment.
-- **Partial audit coverage.** Flag, variation, environment, segment, target, and prerequisite mutations are audited. Rule, SDK key, and organization mutations are not.
-- **Model/migration drift.** `manage.py makemigrations --check` still reports pending `Alter field id` changes on `evaluation` and `sdk_keys`.
-- **Bootstrapped flags produce no impression data.** `POST /sdk/flags/evaluate/` writes nothing to `EvaluationLog` by design, and the batching endpoint that would carry those impressions is not built yet. Until it is, flags served through the bootstrap are invisible to `GET /api/v1/evaluation/logs/`.
-- **Bulk download is evaluated, not raw config.** `POST /sdk/flags/evaluate/` returns resolved values for one user context, so an SDK cannot evaluate locally, work offline, or re-resolve a changed context without another request.
 - **Prerequisite chains cost a cache read each on the per-flag endpoint.** `POST /sdk/evaluate/` resolves one cached entry per flag in the chain. No DB queries, but not free for deep chains. The bulk endpoint does not pay this — its preloaded payloads cover the whole environment, gate flags included.
-- **`gt` / `lt` crash on a non-numeric attribute.** `RuleEvaluator._evaluate` calls `float(user_value)` unguarded, so a rule like `age gt 18` against a context of `{"age": "unknown"}` raises `ValueError` and returns **500** from `POST /sdk/evaluate/`. Pre-existing. Needs a decision — failing closed (no match) would match how every other unresolvable case in the engine behaves. Blocks the config-download spec ([SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md) §9.1).
 - **No benchmarks.** Nothing in this repo measures throughput, latency, or cache hit rate. Any performance characteristics are unmeasured.
 - **No OpenAPI schema.** Use the Postman collection.
 
@@ -518,7 +630,7 @@ A variation must hold a boolean, string, number, or arbitrary JSON object. `JSON
 
 ## Roadmap
 
-**Built** — Phase 1 (foundational data model) and Phase 2 (targeting):
+**Built** — the flag engine is complete: Phase 1 (data model), Phase 2 (targeting), and Phase 3 (SDK infrastructure) less SSE.
 
 - Flag CRUD, multivariate flags, archive/soft-delete, per-environment state and toggle
 - Version history with one-click rollback
@@ -529,15 +641,25 @@ A variation must hold a boolean, string, number, or arbitrary JSON object. `JSON
 - Rule-level percentage rollout
 - Prerequisite flags
 - SDK client bootstrap (`POST /sdk/flags/evaluate/`) — every flag in an environment resolved for one user context
+- SDK config download (`GET /sdk/flags/config/`) — the raw ruleset for in-process SDKs, with `config_version` ETags and generated conformance vectors
+- Impression batching (`POST /sdk/impressions/`) — locally-evaluated flags reported back in bulk
+- Self-serve registration, provisioning a personal organization, project, and environments
+- Audit coverage across every mutating service, with credential redaction
 
-**Not built:**
+**Next** — governance, and the one deferred piece of Phase 3:
 
-- **SDK config download** (`GET /sdk/flags/config/`) — the raw ruleset, for server-side SDKs that evaluate in-process. The bootstrap endpoint above costs a round trip per *user context*, which is the wrong shape for a server SDK handling thousands of users per process. Specified in [SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md).
-- **SDK infrastructure** — impression batching (bulk ingest of eval logs from an SDK), SSE streaming of flag updates.
-- **Workflow** — stale flag detection, scheduled changes, webhooks, approval workflows.
-- **Analytics** — impression aggregation, data export.
-- **Experimentation** — A/B testing framework, statistical significance reporting.
-- **Enterprise** — SSO and SCIM provisioning.
+- **SSE streaming of flag updates.** Deferred on the deployment model, not on features. `config_version` already makes it tractable: a stream event carries the new version and the SDK re-fetches rather than trusting a delta it cannot verify. What is missing is ASGI — under WSGI every open stream holds a worker thread for its lifetime, so a handful of connected SDKs exhausts the pool. `If-None-Match` polling at the advertised 30s is the refresh path until that changes, and a `304` costs a version read.
+- **Workflow** — stale flag detection (a Celery-beat job; beat is already running), scheduled changes, webhooks on mutation, approval workflows for production.
+
+### Deliberately out of scope
+
+These are not a backlog. They are named here so their absence reads as a decision rather than an omission.
+
+- **Analytics beyond the raw log** — impression aggregation and warehouse export. `EvaluationLog` is written and queryable, but it has no rollup, so it answers "what was served" and not "how often, over time". Doing that properly means a time-partitioned rollup and a retention policy, which is a data-engineering project with its own storage story rather than a feature of the flag engine.
+
+- **Experimentation** — A/B testing with statistical significance. This is the largest gap between this project and a commercial product, and it is genuinely a different product: metric ingestion, exposure/assignment tracking separate from impressions, variance estimation, and a decision rule about when a result may be read. The engine already provides what experimentation would build on — deterministic bucketing, variation ids, and impressions — but shipping a half-implemented significance test is worse than shipping none, because a wrong p-value is acted on with confidence.
+
+- **SSO and SCIM** — SAML/OIDC login and directory-driven provisioning. Mostly integration rather than design, and the reason it is not here is that it cannot be verified in this repository: correctness means round-tripping against a real identity provider, handling assertion replay and clock skew, and reconciling deprovisioning against the last-owner rule. Membership, roles, and the 404-not-403 boundary are already the seam it would attach to.
 
 ---
 

@@ -55,6 +55,29 @@ class EvaluationQuery:
         )
 
     @staticmethod
+    def flag_ids_by_key(flag_keys, project_id: int, env_id: int) -> dict:
+        """`{flag_key: flag_id}` for the keys that are live in this environment.
+
+        One indexed read for a whole impression batch, rather than a lookup per
+        impression. A key that is archived, deleted, or not configured here is
+        simply absent — the ingest endpoint drops those rather than failing the
+        batch, since an SDK holding a slightly stale config would otherwise
+        never be able to flush again.
+        """
+        if not flag_keys:
+            return {}
+        return dict(
+            EnvironmentFlag.objects
+            .filter(
+                feature_flag__key__in=set(flag_keys),
+                feature_flag__project_id=project_id,
+                feature_flag__is_archived=False,
+                environment_id=env_id,
+            )
+            .values_list("feature_flag__key", "feature_flag_id")
+        )
+
+    @staticmethod
     def get_active_env_flags(flag_keys, project_id: int, env_id: int) -> list:
         """Bulk sibling of `get_active_env_flag` — one query for many flags.
 

@@ -1,4 +1,4 @@
-from apps.rules.models import Operator
+from apps.rules.models import Operator, to_number
 from apps.core.errors import APIError, Error
 
 
@@ -79,8 +79,25 @@ class RuleEvaluator:
             return user_value in [v.strip() for v in rule_value.split(",")]
         elif operator == Operator.NOT_IN:
             return user_value not in [v.strip() for v in rule_value.split(",")]
-        elif operator == Operator.GT:
-            return float(user_value) > float(rule_value)
-        elif operator == Operator.LT:
-            return float(user_value) < float(rule_value)
+        elif operator in Operator.numeric_operators():
+            return self._evaluate_numeric(user_value, operator, rule_value)
         raise APIError(Error.INVALID_OPERATOR, extra=[operator])
+
+    @staticmethod
+    def _evaluate_numeric(user_value: str, operator: str, rule_value: str) -> bool:
+        """Compare two operands numerically, matching nobody if either is not a number.
+
+        `user_value` is arbitrary untrusted input from the caller's user
+        context: `{"age": "unknown"}` against an `age gt 18` rule reaches here
+        as the string "unknown". Coercing it unguarded raised ValueError out of
+        the SDK hot path as a 500.
+
+        A side that will not coerce is unresolvable, and the engine's answer to
+        unresolvable is always "does not match" — the same reading as a missing
+        attribute or a dangling segment key. Both operators return False, so
+        there is no inversion that could turn a bad attribute into a match.
+        """
+        left, right = to_number(user_value), to_number(rule_value)
+        if left is None or right is None:
+            return False
+        return left > right if operator == Operator.GT else left < right

@@ -18,6 +18,21 @@ class Environment(BaseModel):
         related_name="environments",
     )
 
+    # Monotonic counter of "something changed that affects what a flag in this
+    # environment serves". Bumped wherever a flag cache is evicted — those sites
+    # are already the chokepoint for exactly that question, so this adds no new
+    # invalidation surface.
+    #
+    # It is the ETag for GET /sdk/flags/config/, which lets a polling SDK get a
+    # 304 with an empty body instead of a payload it already has, and it is what
+    # makes SSE tractable later: a stream event carries the new version, and an
+    # SDK that sees a gap re-fetches rather than trusting a delta it cannot check.
+    #
+    # Bumps go through `EnvironmentQuery.bump_config_versions`, which uses an
+    # atomic F() update — a Python-side increment would lose writes under
+    # concurrent mutations.
+    config_version = models.PositiveBigIntegerField(default=1)
+
     class Meta:
         unique_together = ("project", "name")
 

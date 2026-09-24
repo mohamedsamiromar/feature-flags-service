@@ -3,7 +3,7 @@ from apps.core.errors import APIError, Error
 from apps.flags.services import FlagService
 from apps.organizations.queries import ProjectQuery
 from apps.organizations.services import AccessService
-from apps.rules.models import Operator
+from apps.rules.models import Operator, to_number
 from apps.segments.models import Segment
 from apps.segments.queries import SegmentQuery, SegmentRuleQuery, SegmentTargetQuery
 
@@ -102,13 +102,8 @@ class SegmentService:
         old_snapshot = AuditService.snapshot(segment)
         SegmentQuery.delete(segment)
 
-        segment.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=segment,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=segment, old_value=old_snapshot
         )
 
     # ------------------------------------------------------------------
@@ -148,13 +143,8 @@ class SegmentService:
         SegmentTargetQuery.delete(target)
         self._invalidate_referencing_flags(segment)
 
-        target.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=target,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=target, old_value=old_snapshot
         )
 
     # ------------------------------------------------------------------
@@ -174,9 +164,23 @@ class SegmentService:
         if operator in Operator.segment_operators():
             raise APIError(Error.INVALID_OPERATOR, extra=[operator])
 
+    @staticmethod
+    def _assert_numeric_value(operator, value) -> None:
+        """A `gt`/`lt` segment rule must compare against a number.
+
+        Same rule, same reasoning as `RuleService._assert_numeric_value`:
+        evaluation fails closed on an operand that will not coerce, so an
+        unchecked `age gt "eighteen"` silently narrows the segment to nobody.
+        """
+        if operator not in Operator.numeric_operators():
+            return
+        if to_number(value) is None:
+            raise APIError(Error.NON_NUMERIC_COMPARISON, extra=[operator, value])
+
     def create_rule(self, project_key: str, key: str, user, **kwargs):
         segment = self._segment(project_key, user, key, write=True)
         self._assert_not_nested(kwargs.get("operator"))
+        self._assert_numeric_value(kwargs.get("operator"), kwargs.get("value"))
         rule = SegmentRuleQuery.create(segment=segment, **kwargs)
         self._invalidate_referencing_flags(segment)
 
@@ -193,6 +197,9 @@ class SegmentService:
         segment = self._segment(project_key, user, key, write=True)
         rule = SegmentRuleQuery.get_for_segment(segment, rule_id)
         self._assert_not_nested(kwargs.get("operator", rule.operator))
+        self._assert_numeric_value(
+            kwargs.get("operator", rule.operator), kwargs.get("value", rule.value)
+        )
 
         old_snapshot = AuditService.snapshot(rule)
         for attr, value in kwargs.items():
@@ -217,11 +224,6 @@ class SegmentService:
         SegmentRuleQuery.delete(rule)
         self._invalidate_referencing_flags(segment)
 
-        rule.pk = old_snapshot["id"]
-        AuditService.log(
-            user=user,
-            action=AuditService.DELETE,
-            entity=rule,
-            old_value=old_snapshot,
-            new_value=None,
+        AuditService.log_delete(
+            user=user, entity=rule, old_value=old_snapshot
         )

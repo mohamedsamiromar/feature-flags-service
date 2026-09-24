@@ -110,8 +110,9 @@ declared status. Views need no `try/except`.
 - **Three-layer numeric validation** — `rollout_percentage`, on both `FeatureFlag` and
   `Rule`, is enforced at the serializer, the model validator, *and* a PostgreSQL
   `CheckConstraint`.
-- **Uncertainty fails closed** — an unresolvable prerequisite or segment reference
-  leaves the flag off. Never invert an unknown.
+- **Uncertainty fails closed** — an unresolvable prerequisite or segment reference,
+  or a `gt`/`lt` operand that is not a number, matches nobody and leaves the flag off.
+  Never invert an unknown.
 
 ---
 
@@ -204,11 +205,15 @@ Every model inherits `core.BaseModel` (`id`, `created_at`, `updated_at`) unless 
 
 | Endpoint | Why / idea | Services & models |
 | --- | --- | --- |
+| `POST /auth/register/` | Self-serve signup. Creates the user **and** the tenancy they need to do anything: a personal organization they own, a `Default` project, and the three standard environments. Returns a JWT pair so the next call needs no second round trip. Atomic — a user with no organization is an account the API cannot repair. Own throttle scope (`registration`, 10/hour): it is the only anonymous endpoint whose abuse leaves rows behind. | `RegistrationService` → `accounts.User`, `organizations.{Organization,Membership,Project}`, `environment.Environment` |
 | `POST /auth/token/` | Exchange username+password for an `access`+`refresh` JWT pair. | `TokenObtainPairView` → `accounts.User` |
 | `POST /auth/token/refresh/` | Trade a refresh token for a fresh access token. | `TokenRefreshView` |
 
 > Short-lived access tokens limit the blast radius of a leak; the refresh token keeps
-> sessions alive without storing passwords. **There is no registration endpoint** — see §8.
+> sessions alive without storing passwords. Username uniqueness is enforced by the
+> database, not by a serializer check: the gap between a `SELECT` and an `INSERT` is
+> exactly where a concurrent signup lands, so `RegistrationService` translates the
+> `IntegrityError` into `USERNAME_TAKEN` (409, -419).
 
 ### 5.2 Organizations & projects — `apps/organizations`
 
@@ -316,7 +321,8 @@ The targeting *configuration* API. Querysets are scoped by project membership.
 
 > Operators: `eq`, `neq`, `contains`, `in`, `not_in`, `gt`, `lt`, `in_segment`,
 > `not_in_segment`. Matching lives in `targeting.RuleEvaluator`; segment membership in
-> `segments.SegmentEvaluator`.
+> `segments.SegmentEvaluator`. `gt`/`lt` compare numerically: an operand that will not
+> coerce matches nobody, and a non-numeric `value` is rejected on write (400, -418).
 
 ### 5.6 Environments — `/api/v1/projects/{project_key}/environments/`
 
@@ -341,13 +347,15 @@ The targeting *configuration* API. Querysets are scoped by project membership.
 
 ### 5.8 SDK — `/api/v1/sdk/`
 
-The product's whole reason to exist. Both endpoints authenticate with
+The product's whole reason to exist. All four endpoints authenticate with
 `SDKKeyAuthentication` and carry their own `ScopedRateThrottle` scope.
 
 | Endpoint | Why / idea | Services & models |
 | --- | --- | --- |
 | `POST /sdk/evaluate/` | Answer "what value does *this user* get for *this flag* in *this environment*?" The environment and project are derived from the key itself, so callers never pass `env_id`. Returns typed `{result, result_type}` and fires the impression log asynchronously. Archived/missing flag → 404. Scope `evaluation`, default 1000/min. | `SDKKeyAuthentication` → `FlagEvaluationService.evaluate` → Redis, `EnvironmentFlag`, `Variation`, `RuleEvaluator`, `SegmentEvaluator`; `log_evaluation.delay(...)` → `EvaluationLog` |
 | `POST /sdk/flags/evaluate/` | Client bootstrap: every flag in the key's environment resolved for one user context, in one call — what an SDK asks for at session start instead of N requests. Returns `{environment, flags: {key: {result, result_type, variation_id}}}`. Archived flags and flags not configured in this environment are omitted, not errors; an empty environment is `200` with `{}`. Scope `evaluation_bulk`, default 120/min, because one call does the work of N. Logs **no** impressions — a bootstrap is a download, not a read. | `SDKKeyAuthentication` → `FlagEvaluationService.evaluate_all` → `EvaluationQuery.active_flag_keys` / `get_active_env_flags`, Redis `get_many`/`set_many`. No Celery dispatch. |
+| `GET /sdk/flags/config/` | The environment's raw ruleset, **unevaluated**, for a server-side SDK that evaluates in-process — one round trip per *config change* rather than per user context. `ETag` carries `Environment.config_version`; `If-None-Match` on an unchanged config is a `304` with an empty body, and `Cache-Control: max-age=30, private` advertises the poll interval. **Server keys only — a client key is `403`**, because the payload holds individual user keys and segment membership and `sdk_cli_` keys ship to browsers. Logs no impressions: a config fetch is not an evaluation. Scope `config_download`. | `HasServerSDKKey` → `FlagEvaluationService.config_for` → the same `_preload_flag_data` map `evaluate_all` uses; whole payload cached at `config:{project}:{env}:{version}` |
+| `POST /sdk/impressions/` | Bulk ingest of flags an SDK resolved locally — the only way those reach `EvaluationLog`, since an in-process SDK never calls `/sdk/evaluate/` and the bootstrap logs nothing. `user_context` is per impression, not per batch: a server SDK's flush spans many users. Unknown flag keys are **dropped and named in `dropped`**, never rejected — one stale key must not block every future flush. `202`, because a worker writes the rows. Capped at 1,000 per batch. Both key types. Scope `impressions`. | `HasSDKKey` → `FlagEvaluationService.record_impressions` → `EvaluationQuery.flag_ids_by_key` (one query per batch); `log_evaluations.delay(...)` → one `bulk_create` |
 
 **Why POST for a read?** The user context is an arbitrary nested object.
 Query-string encoding it is lossy for anything but flat strings, and it would put
@@ -419,6 +427,14 @@ algorithm with typed results.
 include/exclude/rule membership; rule-level percentage rollout; prerequisite flags with
 two-layer cycle protection.
 
+**SDK infrastructure (Phase 3, complete less SSE)** — client bootstrap; config download
+with `config_version` ETags, `304` on an unchanged poll and server-key-only access;
+generated conformance vectors checked in CI; impression batching for locally-evaluated
+flags.
+
+**Accounts** — self-serve registration that provisions a personal organization, a
+default project, and the three standard environments in one transaction.
+
 **Multivariate flags** — `boolean` vs `multivariate`; JSON-stored typed values;
 off/fallthrough wiring; rule-level `serve_variation`; backwards-compatible fallback.
 
@@ -438,26 +454,21 @@ once-shown raw key; revoke; atomic rotate; `last_used_at`.
 membership scoping everywhere; three-layer numeric validation; a dedicated rate limit on
 evaluate.
 
-**Observability** — audit trail with before/after snapshots; async evaluation logging via
-Celery with retry/back-off; read-only audit and eval-log APIs.
+**Observability** — audit trail with before/after snapshots covering every mutating
+service (flags, variations, environments, segments, targets, prerequisites, rules, SDK
+keys, organizations, memberships, projects), with credential fields redacted from
+snapshots; async evaluation logging via Celery with retry/back-off; read-only audit and
+eval-log APIs.
 
 **Infra** — `/healthz` DB+Redis probe; env-var config; `CONN_MAX_AGE`; compound indexes;
 Docker Compose; Postman collection.
 
-**359 tests** covering all of the above.
+**553 tests** covering all of the above.
 
 ---
 
 ## 7. Known rough edges
 
-- **No self-serve registration.** Users come from `createsuperuser` or the admin. A
-  `POST /api/v1/auth/register/` should also provision a personal organization and
-  default project, mirroring the `organizations/0002_backfill_personal_orgs` migration.
-- **Partial audit coverage.** Flag, variation, environment, segment, target, and
-  prerequisite mutations are audited. **Rule, SDK key, and organization mutations are
-  not** — `AuditService` is only called from `flags/`, `segments/`, and `environment/`.
-- **Model/migration drift.** `makemigrations --check` still reports pending
-  `Alter field id` changes on `evaluation` and `sdk_keys`.
 - **`FeatureFlag.is_enabled` / `rollout_percentage` are quasi-legacy.** Evaluation reads
   the `EnvironmentFlag` values; these serve as global defaults.
 - **Prerequisite chains cost a cache read each.** One evaluation resolves one cached
@@ -465,8 +476,6 @@ Docker Compose; Postman collection.
 - **`delete_segment` check-then-delete is not transactional.** A rule created
   concurrently with a segment delete could leave a dangling reference. Benign, because
   unknown segments fail closed — do *not* "fix" it by inverting that fallback.
-- **`targeting` app has leftover scaffold models** (`Country`, `City`).
-- **Compose stores no data** — neither `db` nor `redis` declares a volume.
 
 ---
 
@@ -484,10 +493,15 @@ Docker Compose; Postman collection.
 **Phase 3 — real-time SDK infra** — in progress
 
 - [x] SDK **client bootstrap** — `POST /sdk/flags/evaluate/` (one user context, every flag)
-- [ ] SDK **config download** — `GET /sdk/flags/config/` (raw ruleset, server-side SDKs evaluate
-      in-process). Specified in `SDK_CONFIG_SPEC.md`; blocked on the `gt`/`lt` crash in §9.1
-- [ ] Impression **batching** endpoint (bulk eval-log ingest from an SDK)
-- [ ] **SSE streaming** — push flag updates to connected SDKs (builds on `config_version`)
+- [x] SDK **config download** — `GET /sdk/flags/config/` (raw ruleset, server-side SDKs evaluate
+      in-process), with `Environment.config_version` ETags, `304` on an unchanged poll, server
+      keys only, and generated conformance vectors. Specified in `SDK_CONFIG_SPEC.md`
+- [x] Impression **batching** — `POST /sdk/impressions/` (bulk ingest of flags an SDK
+      resolved locally; unknown keys dropped and reported, not rejected)
+- [ ] **SSE streaming** — deferred, and not for want of `config_version`, which already
+      makes it tractable. It needs ASGI: under WSGI each open stream holds a worker
+      thread for its lifetime. `If-None-Match` polling at the advertised 30s is the
+      refresh path until the deployment model changes.
 
 **Phase 4 — workflow & governance**
 
@@ -496,24 +510,31 @@ Docker Compose; Postman collection.
 - [ ] Webhook notifications on mutations
 - [ ] Approval workflows for production changes
 
-**Phase 5 — observability & analytics**
+### Deliberately out of scope
 
-- [ ] Impression aggregation (hourly rollup + stats endpoint)
-- [ ] Data export to S3 / BigQuery
+Phases 5–7 of the original plan are not a backlog. They are recorded here so their
+absence reads as a decision.
 
-**Phase 6 — experimentation**
+**Analytics beyond the raw log** (was Phase 5) — impression aggregation, warehouse
+export. `EvaluationLog` is written and queryable but has no rollup, so it answers
+"what was served", not "how often, over time". Doing that properly needs a
+time-partitioned rollup and a retention policy: a data-engineering project with its own
+storage story, not a feature of the flag engine. The seam is there if it is ever wanted —
+impressions now arrive through one endpoint.
 
-- [ ] A/B testing framework
-- [ ] Statistical significance reporting
+**Experimentation** (was Phase 6) — A/B testing with statistical significance. The
+largest gap between this and a commercial product, and genuinely a different product:
+metric ingestion, exposure tracking separate from impressions, variance estimation, and
+a decision rule for when a result may be read. The engine already supplies what it would
+build on — deterministic bucketing, variation ids, impressions. Half-implementing the
+statistics is worse than not shipping them, because a wrong p-value is acted on with
+confidence.
 
-**Phase 7 — enterprise**
-
-- [ ] SSO + SCIM provisioning
-
-### The single most impactful next endpoint
-
-`POST /api/v1/auth/register/`. For a backend meant to be adopted "in minutes", the fact
-that the only way to create a user is `createsuperuser` is the sharpest edge left.
+**SSO + SCIM** (was Phase 7) — mostly integration rather than design, and unverifiable
+in this repository: correctness means round-tripping against a real identity provider,
+handling assertion replay and clock skew, and reconciling deprovisioning against the
+last-owner rule. Membership, roles, and the 404-not-403 boundary are the seam it would
+attach to.
 
 ---
 
@@ -521,6 +542,7 @@ that the only way to create a user is `createsuperuser` is the sharpest edge lef
 
 ```text
 # Auth
+POST   /api/v1/auth/register/
 POST   /api/v1/auth/token/
 POST   /api/v1/auth/token/refresh/
 
@@ -600,6 +622,8 @@ POST   /api/v1/sdk-keys/{id}/rotate/
 # SDK
 POST   /api/v1/sdk/evaluate/                                header: X-SDK-Key
 POST   /api/v1/sdk/flags/evaluate/                          header: X-SDK-Key
+GET    /api/v1/sdk/flags/config/                            header: X-SDK-Key (server keys only)
+POST   /api/v1/sdk/impressions/                             header: X-SDK-Key
 
 # Observability
 GET    /api/v1/evaluation/logs/

@@ -562,9 +562,11 @@ class TestBulkImpressionLogging:
 
 @pytest.mark.django_db
 class TestBatchIngestPrimitive:
-    """`log_evaluations` stays as the ingest primitive for the batching
-    endpoint (Phase 3, item 2). It is not wired to a view yet, so these test
-    it directly — otherwise the batching work inherits it untested."""
+    """`log_evaluations` is the ingest primitive behind `POST /sdk/impressions/`.
+
+    Tested directly here for the two properties the endpoint's own tests cannot
+    see through a mocked `.delay()`: that a batch is one insert, and that an
+    empty one touches nothing."""
 
     def test_writes_one_row_per_evaluation_in_one_insert(self, flag):
         from django.db import connection, reset_queries
@@ -577,12 +579,16 @@ class TestBatchIngestPrimitive:
             reset_queries()
             log_evaluations(
                 evaluations=[
-                    {"flag_id": flag.id, "result": True},
-                    {"flag_id": flag.id, "result": False},
-                    {"flag_id": flag.id, "result": "variant-b"},
+                    # Context is per record: an impression flush spans many
+                    # users, so a batch cannot share one.
+                    {"flag_id": flag.id, "result": True,
+                     "context_data": {"user_id": "u1"}},
+                    {"flag_id": flag.id, "result": False,
+                     "context_data": {"user_id": "u2"}},
+                    {"flag_id": flag.id, "result": "variant-b",
+                     "context_data": {"user_id": "u3"}},
                 ],
                 user_id=None,
-                context_data={"user_id": "u1"},
             )
             inserts = [q for q in connection.queries if "INSERT" in q["sql"].upper()]
 
@@ -593,7 +599,7 @@ class TestBatchIngestPrimitive:
         from apps.evaluation.models import EvaluationLog
         from apps.evaluation.tasks import log_evaluations
 
-        log_evaluations(evaluations=[], user_id=None, context_data={})
+        log_evaluations(evaluations=[], user_id=None)
         assert EvaluationLog.objects.count() == 0
 
 

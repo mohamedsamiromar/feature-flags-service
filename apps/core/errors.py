@@ -8,7 +8,7 @@ logger = logging.getLogger("django")
 
 # Business error codes are negative and stable; the HTTP status is what clients
 # branch on, while `code` gives a precise, language-independent handle for a
-# specific failure. Keep codes unique. Last used code: -417.
+# specific failure. Keep codes unique. Last used code: -419.
 
 
 class Error(Enum):
@@ -101,6 +101,16 @@ class Error(Enum):
         "code": -414,
         "http_status": status.HTTP_400_BAD_REQUEST,
         "detail": _("No segment with key ({}) exists in this project."),
+    }
+    USERNAME_TAKEN = {
+        "code": -419,
+        "http_status": status.HTTP_409_CONFLICT,
+        "detail": _("The username ({}) is not available."),
+    }
+    NON_NUMERIC_COMPARISON = {
+        "code": -418,
+        "http_status": status.HTTP_400_BAD_REQUEST,
+        "detail": _("Operator ({}) compares numbers, but value ({}) is not one."),
     }
 
 

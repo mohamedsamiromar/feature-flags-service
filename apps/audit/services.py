@@ -32,6 +32,20 @@ class AuditService:
     UNARCHIVE = "unarchive"
     TOGGLE = "toggle"
     ROLLBACK = "rollback"
+    REVOKE = "revoke"
+    ROTATE = "rotate"
+
+    # Fields that must never be copied into an audit entry, keyed by
+    # `Model._meta.model_name`. A registry rather than a per-call argument: an
+    # argument is something a future caller can forget, and forgetting here
+    # writes the secret to a second table with different access rules.
+    #
+    # `SDKKey.hashed_key` is the value `SDKKeyAuthentication` looks a key up by.
+    # It is not the raw credential, but the whole point of hash-only storage is
+    # that the digest lives in exactly one place.
+    REDACTED_FIELDS = {
+        "sdkkey": {"hashed_key"},
+    }
 
     @classmethod
     def log(
@@ -69,15 +83,35 @@ class AuditService:
     # Helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def snapshot(instance) -> dict:
+    @classmethod
+    def log_delete(cls, *, user, entity, old_value: dict) -> AuditLog:
+        """Log a DELETE for an instance that has already been deleted.
+
+        ``Model.delete()`` sets ``instance.pk`` to None, so logging afterwards
+        would record ``entity_id="None"`` and detach the entry from the row it
+        describes. The pk is restored from the snapshot taken before the delete.
+
+        Every delete goes through here rather than repeating that restore at
+        each call site — the failure is silent, and an audit entry that cannot
+        be traced to its row is worse than no entry at all.
+        """
+        entity.pk = old_value["id"]
+        return cls.log(
+            user=user, action=cls.DELETE, entity=entity, old_value=old_value
+        )
+
+    @classmethod
+    def snapshot(cls, instance) -> dict:
         """
         Return a JSON-serialisable dict of a model instance's field values.
 
         Excludes auto-managed fields (created_at, updated_at) that are not
-        meaningful for diffing purposes.
+        meaningful for diffing purposes, and anything listed in
+        ``REDACTED_FIELDS`` for this model.
         """
         data = model_to_dict(instance)
         # model_to_dict omits auto fields; add pk explicitly for traceability
         data["id"] = instance.pk
+        for field in cls.REDACTED_FIELDS.get(instance._meta.model_name, ()):
+            data.pop(field, None)
         return data

@@ -8,7 +8,8 @@
     {"key": "project_key", "value": "default"},
     {"key": "access_token", "value": ""},
     {"key": "refresh_token", "value": ""},
-    {"key": "sdk_key", "value": ""}
+    {"key": "sdk_key", "value": ""},
+    {"key": "config_version", "value": ""}
   ],
   "item": [
     {
@@ -45,8 +46,89 @@
     },
     {
       "name": "Auth",
-      "description": "JWT authentication endpoints.\n\nUser accounts are not created through the API. To create a user:\n• Django admin UI: http://localhost:8000/admin/\n• Management command: python manage.py createsuperuser\n\nOnce a user exists, obtain a token pair with POST /auth/token/ and include the access token as a Bearer token on all subsequent requests. Access tokens expire — use POST /auth/token/refresh/ with the refresh token to get a new one without re-entering credentials.",
+      "description": "Registration and JWT authentication.\n\nStart with POST /auth/register/. It creates the account AND the tenancy it needs: a personal organization you own, a Default project, and the development/staging/production environments. A bare user cannot do anything — flags belong to a project, and a project only exists inside an organization — so all of it is provisioned in one transaction.\n\nRegistering returns a JWT pair, so you do not need to call /auth/token/ straight afterwards. Access tokens expire — use POST /auth/token/refresh/ with the refresh token to get a new one without re-entering credentials.\n\nSuperusers for the Django admin still come from `python manage.py createsuperuser`.",
       "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', json.access);",
+                  "pm.collectionVariables.set('refresh_token', json.refresh);",
+                  "pm.collectionVariables.set('project_key', json.project.key);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {"type": "noauth"},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/auth/register/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newcomer\",\n  \"email\": \"newcomer@example.com\",\n  \"password\": \"s3cur3-passphrase!\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Creates the user and their personal tenancy in one transaction, then returns a JWT pair. The test script saves access_token, refresh_token, and project_key, so the rest of this collection works immediately after running it.\n\nemail is optional. password is checked against Django's validators, including similarity to the username.\n\n409 (-419) if the username is taken. Throttled to 10/hour — it is the only anonymous endpoint whose abuse leaves rows behind."
+          },
+          "response": [
+            {
+              "name": "201 Created — account and tenancy provisioned",
+              "originalRequest": {
+                "method": "POST",
+                "auth": {"type": "noauth"},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/auth/register/",
+                  "host": ["{{base_url}}"],
+                  "path": ["auth", "register", ""]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"newcomer\",\n  \"email\": \"newcomer@example.com\",\n  \"password\": \"s3cur3-passphrase!\"\n}",
+                  "options": {"raw": {"language": "json"}}
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\n  \"user\": {\"id\": 7, \"username\": \"newcomer\", \"email\": \"newcomer@example.com\"},\n  \"organization\": {\"id\": 4, \"name\": \"Personal — newcomer\", \"slug\": \"newcomer\", \"created_at\": \"2026-09-08T10:00:00Z\"},\n  \"project\": {\"id\": 4, \"organization\": 4, \"name\": \"Default\", \"key\": \"newcomer-default\", \"created_at\": \"2026-09-08T10:00:00Z\"},\n  \"environments\": [\n    {\"id\": 10, \"name\": \"development\", \"created_at\": \"2026-09-08T10:00:00Z\", \"updated_at\": \"2026-09-08T10:00:00Z\"},\n    {\"id\": 11, \"name\": \"staging\", \"created_at\": \"2026-09-08T10:00:00Z\", \"updated_at\": \"2026-09-08T10:00:00Z\"},\n    {\"id\": 12, \"name\": \"production\", \"created_at\": \"2026-09-08T10:00:00Z\", \"updated_at\": \"2026-09-08T10:00:00Z\"}\n  ],\n  \"access\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"refresh\": \"eyJhbGciOiJIUzI1NiIs...\"\n}"
+            },
+            {
+              "name": "409 Conflict — username taken",
+              "originalRequest": {
+                "method": "POST",
+                "auth": {"type": "noauth"},
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "url": {
+                  "raw": "{{base_url}}/auth/register/",
+                  "host": ["{{base_url}}"],
+                  "path": ["auth", "register", ""]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"newcomer\",\n  \"password\": \"s3cur3-passphrase!\"\n}",
+                  "options": {"raw": {"language": "json"}}
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\n  \"code\": -419,\n  \"detail\": \"The username (newcomer) is not available.\"\n}"
+            }
+          ]
+        },
         {
           "name": "Obtain Token",
           "event": [
@@ -2414,6 +2496,7 @@
     },
     {
       "name": "SDK",
+      "description": "The four SDK endpoints, all authenticated with the X-SDK-Key header rather than a JWT — the key is the principal, and it carries its own project and environment.\n\nThey are not interchangeable. Evaluate Flag answers one flag for one user. Bootstrap answers every flag for one user, which is what a browser SDK wants at session start. Download Config ships the raw ruleset so a server-side SDK can evaluate thousands of users in-process without a round trip each. Report Impressions is how anything evaluated locally reaches the evaluation log.",
       "item": [
         {
           "name": "Evaluate Flag",
@@ -2720,8 +2803,180 @@
               "body": "{\n  \"detail\": \"Invalid or revoked SDK key.\"\n}"
             }
           ]
-        }
-      ]
+        },
+        {
+          "name": "Download Config",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "noauth"},
+            "header": [
+              {"key": "X-SDK-Key", "value": "{{sdk_key}}"},
+              {"key": "If-None-Match", "value": "\"{{config_version}}\"", "disabled": true}
+            ],
+            "url": {
+              "raw": "{{base_url}}/sdk/flags/config/",
+              "host": ["{{base_url}}"],
+              "path": ["sdk", "flags", "config", ""]
+            },
+            "description": "The environment's whole ruleset, UNEVALUATED, for a server-side SDK that evaluates in-process. Full wire format and the normative evaluation contract: SDK_CONFIG_SPEC.md.\n\nSERVER KEYS ONLY — a client key gets 403. The payload contains individual user keys and segment membership lists, and sdk_cli_ keys ship to browsers.\n\nThe ETag carries config_version, which advances on every write that changes what a flag serves. Enable the If-None-Match header (and set {{config_version}}) to get a 304 with an empty body while nothing has changed — that is what makes the advertised 30s poll cheap.\n\nAn SDK consuming this must reproduce sdk_conformance_vectors.json exactly. Local evaluation that diverges from the engine serves the wrong value to real users, silently.",
+            "event": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('config_version', pm.response.json().config_version);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK — ruleset returned",
+              "originalRequest": {
+                "method": "GET",
+                "auth": {"type": "noauth"},
+                "header": [{"key": "X-SDK-Key", "value": "{{sdk_key}}"}],
+                "url": {
+                  "raw": "{{base_url}}/sdk/flags/config/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "flags", "config", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"},
+                {"key": "ETag", "value": "\"4127\""},
+                {"key": "Cache-Control", "value": "max-age=30, private"}
+              ],
+              "body": "{\n  \"format_version\": 1,\n  \"environment\": \"production\",\n  \"config_version\": 4127,\n  \"segments\": {\n    \"beta\": {\n      \"included\": [\"alice\"],\n      \"excluded\": [\"carol\"],\n      \"rules\": [{\"attribute\": \"plan\", \"operator\": \"eq\", \"value\": \"pro\"}]\n    }\n  },\n  \"flags\": {\n    \"dark-mode\": {\n      \"flag_type\": \"boolean\",\n      \"is_enabled\": true,\n      \"rollout_percentage\": 20,\n      \"off_variation\": {\"id\": 18, \"value\": false, \"value_type\": \"boolean\"},\n      \"fallthrough_variation\": {\"id\": 17, \"value\": true, \"value_type\": \"boolean\"},\n      \"targets\": {\"dave\": 18},\n      \"prerequisites\": [{\"flag_key\": \"gate\", \"required_variation_id\": 9}],\n      \"rules\": [\n        {\"id\": 55, \"attribute\": \"country\", \"operator\": \"eq\", \"value\": \"EG\", \"priority\": 1, \"rollout_percentage\": 50, \"serve_variation\": {\"id\": 17, \"value\": true, \"value_type\": \"boolean\"}}\n      ]\n    }\n  }\n}"
+            },
+            {
+              "name": "304 Not Modified — nothing changed since If-None-Match",
+              "originalRequest": {
+                "method": "GET",
+                "auth": {"type": "noauth"},
+                "header": [
+                  {"key": "X-SDK-Key", "value": "{{sdk_key}}"},
+                  {"key": "If-None-Match", "value": "\"4127\""}
+                ],
+                "url": {
+                  "raw": "{{base_url}}/sdk/flags/config/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "flags", "config", ""]
+                }
+              },
+              "status": "Not Modified",
+              "code": 304,
+              "_postman_previewlanguage": "text",
+              "header": [
+                {"key": "ETag", "value": "\"4127\""},
+                {"key": "Cache-Control", "value": "max-age=30, private"}
+              ],
+              "body": ""
+            },
+            {
+              "name": "403 Forbidden — client key refused",
+              "originalRequest": {
+                "method": "GET",
+                "auth": {"type": "noauth"},
+                "header": [{"key": "X-SDK-Key", "value": "sdk_cli_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"}],
+                "url": {
+                  "raw": "{{base_url}}/sdk/flags/config/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "flags", "config", ""]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\n  \"detail\": \"This endpoint requires a server SDK key (sdk_srv_).\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Report Impressions",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "noauth"},
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-SDK-Key", "value": "{{sdk_key}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/sdk/impressions/",
+              "host": ["{{base_url}}"],
+              "path": ["sdk", "impressions", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"impressions\": [\n    {\n      \"flag_key\": \"dark-mode\",\n      \"result\": true,\n      \"user_context\": {\"user_id\": \"u_1\", \"plan\": \"pro\"}\n    },\n    {\n      \"flag_key\": \"new-checkout\",\n      \"result\": false,\n      \"user_context\": {\"user_id\": \"u_2\"}\n    }\n  ]\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Bulk-report flags an SDK resolved WITHOUT asking the server. Without this, local evaluation is invisible: an SDK working from Download Config never calls /sdk/evaluate/, and Bootstrap deliberately logs nothing, so those flags would never reach GET /api/v1/evaluation/logs/.\n\nuser_context is per impression, not per batch — a server SDK's flush spans many users, and a shared context would force one request each.\n\nUnknown flag keys are DROPPED and named in `dropped`, never rejected. One stale key (a flag archived since the SDK last fetched its config) must not reject every future flush.\n\n202, not 201: a Celery worker writes the rows, so the response confirms the batch was queued. Capped at 1,000 impressions per request. Both key types accepted."
+          },
+          "response": [
+            {
+              "name": "202 Accepted — batch queued",
+              "originalRequest": {
+                "method": "POST",
+                "auth": {"type": "noauth"},
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "X-SDK-Key", "value": "{{sdk_key}}"}
+                ],
+                "url": {
+                  "raw": "{{base_url}}/sdk/impressions/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "impressions", ""]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"impressions\": [\n    {\"flag_key\": \"dark-mode\", \"result\": true, \"user_context\": {\"user_id\": \"u_1\"}}\n  ]\n}",
+                  "options": {"raw": {"language": "json"}}
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\n  \"accepted\": 1,\n  \"dropped\": []\n}"
+            },
+            {
+              "name": "202 Accepted — one key no longer exists",
+              "originalRequest": {
+                "method": "POST",
+                "auth": {"type": "noauth"},
+                "header": [
+                  {"key": "Content-Type", "value": "application/json"},
+                  {"key": "X-SDK-Key", "value": "{{sdk_key}}"}
+                ],
+                "url": {
+                  "raw": "{{base_url}}/sdk/impressions/",
+                  "host": ["{{base_url}}"],
+                  "path": ["sdk", "impressions", ""]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"impressions\": [\n    {\"flag_key\": \"dark-mode\", \"result\": true},\n    {\"flag_key\": \"deleted-long-ago\", \"result\": true}\n  ]\n}",
+                  "options": {"raw": {"language": "json"}}
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "{\n  \"accepted\": 1,\n  \"dropped\": [\"deleted-long-ago\"]\n}"
+            }
+          ]
+        }      ]
     },
     {
       "name": "Audit Logs",

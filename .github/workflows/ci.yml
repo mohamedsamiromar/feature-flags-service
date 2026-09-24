@@ -57,5 +57,14 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Check SDK conformance vectors are current
+        # The vectors are the contract every in-process SDK is verified
+        # against. If engine behaviour changes they must change with it, and
+        # the diff is the reviewable record that the contract moved.
+        run: python manage.py generate_conformance_vectors --check
+
       - name: Run tests
         run: pytest
