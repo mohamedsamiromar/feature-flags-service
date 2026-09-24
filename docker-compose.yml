@@ -20,8 +20,11 @@ services:
       POSTGRES_DB: feature_flags
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    # Loopback only: published on 0.0.0.0 this is reachable from the LAN with
+    # the default postgres/postgres credentials. The host port stays so tests
+    # can run outside Docker (see AGENTS.md).
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,8 +35,11 @@ services:
 
   redis:
     image: redis:7
+    # Loopback only. This Redis has no password, and Django's cache pickles
+    # what it stores — anyone who can write a `flags:*` key gets code
+    # execution in the web process on the next evaluation.
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
 
