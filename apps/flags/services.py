@@ -45,6 +45,10 @@ class FlagService:
 
     def create_flag(self, project_key: str, user, **kwargs) -> FeatureFlag:
         project = self._project(project_key, user, write=True)
+        # A flag that does not exist yet owns no variations, so any variation
+        # named here belongs to some other flag — possibly another tenant's,
+        # whose value the SDK would then serve to whoever created this one.
+        self._assert_variations_belong(None, kwargs)
         flag_type = kwargs.get("flag_type", FeatureFlag.FlagType.BOOLEAN)
         flag = FlagQuery.create(project=project, **kwargs)
 
@@ -73,7 +77,7 @@ class FlagService:
         new_key = kwargs.pop("key", None)
         if new_key is not None and new_key != flag.key:
             raise APIError(Error.IMMUTABLE_FIELD, extra=["key"])
-        self._assert_variations_belong(flag, kwargs)
+        self._assert_variations_belong(flag.id, kwargs)
         old_snapshot = AuditService.snapshot(flag)
 
         for attr, value in kwargs.items():
@@ -406,11 +410,14 @@ class FlagService:
             raise APIError(Error.FLAG_ARCHIVED)
 
     @staticmethod
-    def _assert_variations_belong(flag: FeatureFlag, kwargs: dict) -> None:
-        """A flag's off/fallthrough variation must be one of its own variations."""
+    def _assert_variations_belong(flag_id, kwargs: dict) -> None:
+        """A flag's off/fallthrough variation must be one of its own variations.
+
+        `flag_id` is None on create, where no variation can qualify.
+        """
         for field in ("off_variation", "fallthrough_variation"):
             variation = kwargs.get(field)
-            if variation is not None and variation.flag_id != flag.id:
+            if variation is not None and variation.flag_id != flag_id:
                 raise APIError(Error.VARIATION_NOT_IN_FLAG, extra=["Variation"])
 
     @classmethod

@@ -109,7 +109,8 @@ class MembershipService:
     def add(self, actor, slug: str, user, role: str) -> Membership:
         # `user` is the target user's id (from MembershipWriteSerializer).
         org = OrganizationQuery.get_for_member(slug, actor)
-        AccessService.assert_can_admin(actor, org.id)
+        actor_role = AccessService.assert_can_admin(actor, org.id)
+        self._assert_may_touch_owner_rank(actor_role, role)
         if MembershipQuery.role_for(user, org.id) is not None:
             raise APIError(Error.ALREADY_IN_STATE, extra=["User", "a member"])
 
@@ -127,8 +128,9 @@ class MembershipService:
 
     def change_role(self, actor, slug: str, user_id, role: str) -> Membership:
         org = OrganizationQuery.get_for_member(slug, actor)
-        AccessService.assert_can_admin(actor, org.id)
+        actor_role = AccessService.assert_can_admin(actor, org.id)
         membership = MembershipQuery.get(org, user_id)
+        self._assert_may_touch_owner_rank(actor_role, role, membership.role)
         # Never leave an org with zero owners.
         if membership.role == Role.OWNER and role != Role.OWNER:
             self._assert_not_last_owner(org)
@@ -147,8 +149,9 @@ class MembershipService:
 
     def remove(self, actor, slug: str, user_id) -> None:
         org = OrganizationQuery.get_for_member(slug, actor)
-        AccessService.assert_can_admin(actor, org.id)
+        actor_role = AccessService.assert_can_admin(actor, org.id)
         membership = MembershipQuery.get(org, user_id)
+        self._assert_may_touch_owner_rank(actor_role, membership.role)
         if membership.role == Role.OWNER:
             self._assert_not_last_owner(org)
 
@@ -157,6 +160,18 @@ class MembershipService:
         AuditService.log_delete(
             user=actor, entity=membership, old_value=old_snapshot
         )
+
+    @staticmethod
+    def _assert_may_touch_owner_rank(actor_role: str, *roles: str) -> None:
+        """Only an owner may grant the owner role or change an owner's membership.
+
+        ADMIN is enough to manage members, but not to reach the rank above it:
+        an admin who could promote themselves would lift the last-owner guard,
+        then demote or remove the real owner and delete the org. `roles` are
+        every role the write involves — the one granted and the one replaced.
+        """
+        if Role.OWNER in roles and actor_role != Role.OWNER:
+            raise APIError(Error.INSUFFICIENT_ROLE)
 
     @staticmethod
     def _assert_not_last_owner(org) -> None:

@@ -136,3 +136,82 @@ class TestCrossProjectIsolation:
         twin = FeatureFlagFactory(project=other_project, key="dark-mode")
         assert twin.key == flag.key
         assert twin.project_id != flag.project_id
+
+
+@pytest.mark.django_db
+class TestOwnerRankIsOwnerOnly:
+    """Only an owner may grant the owner role or touch an owner's membership.
+
+    Without this an admin promotes themselves, which lifts the last-owner guard,
+    then demotes or removes the original owner and can delete the org.
+    """
+
+    @pytest.fixture
+    def org(self, db):
+        project = ProjectFactory()
+        owner = _member(project, Role.OWNER)
+        admin = _member(project, Role.ADMIN)
+        return project.organization, owner, admin
+
+    def _members_url(self, org, user_id=None):
+        url = f"/api/v1/organizations/{org.slug}/members/"
+        return f"{url}{user_id}/" if user_id else url
+
+    def _role(self, org, user):
+        return Membership.objects.get(organization=org, user=user).role
+
+    def test_admin_cannot_promote_self_to_owner(self, org):
+        org, _, admin = org
+        resp = _client(admin).patch(
+            self._members_url(org, admin.id), {"role": Role.OWNER}, format="json"
+        )
+        assert resp.status_code == 403
+        assert self._role(org, admin) == Role.ADMIN
+
+    def test_admin_cannot_add_an_owner(self, org):
+        org, _, admin = org
+        newcomer = UserFactory()
+        resp = _client(admin).post(
+            self._members_url(org), {"user": newcomer.id, "role": Role.OWNER}, format="json"
+        )
+        assert resp.status_code == 403
+        assert not Membership.objects.filter(organization=org, user=newcomer).exists()
+
+    def test_admin_cannot_demote_an_owner(self, org):
+        org, owner, admin = org
+        # A second owner, so the last-owner guard is not what stops this.
+        _member_in_org(org, Role.OWNER)
+        resp = _client(admin).patch(
+            self._members_url(org, owner.id), {"role": Role.VIEWER}, format="json"
+        )
+        assert resp.status_code == 403
+        assert self._role(org, owner) == Role.OWNER
+
+    def test_admin_cannot_remove_an_owner(self, org):
+        org, owner, admin = org
+        _member_in_org(org, Role.OWNER)
+        resp = _client(admin).delete(self._members_url(org, owner.id))
+        assert resp.status_code == 403
+        assert self._role(org, owner) == Role.OWNER
+
+    def test_owner_can_grant_owner(self, org):
+        org, owner, admin = org
+        resp = _client(owner).patch(
+            self._members_url(org, admin.id), {"role": Role.OWNER}, format="json"
+        )
+        assert resp.status_code == 200
+        assert self._role(org, admin) == Role.OWNER
+
+    def test_admin_still_manages_non_owners(self, org):
+        org, _, admin = org
+        member = _member_in_org(org, Role.MEMBER)
+        resp = _client(admin).patch(
+            self._members_url(org, member.id), {"role": Role.VIEWER}, format="json"
+        )
+        assert resp.status_code == 200
+
+
+def _member_in_org(org, role):
+    user = UserFactory()
+    MembershipFactory(organization=org, user=user, role=role)
+    return user

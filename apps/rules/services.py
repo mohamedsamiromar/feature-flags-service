@@ -25,6 +25,7 @@ class RuleService:
     def create(self, user, validated_data: dict) -> Rule:
         flag = validated_data["flag"]
         self._assert_flag_writable(flag, user)
+        self._assert_variation_in_flag(flag, validated_data)
         self._assert_segment_exists(flag, validated_data)
         self._assert_attribute_present(validated_data)
         self._assert_numeric_value(validated_data)
@@ -40,8 +41,16 @@ class RuleService:
         return rule
 
     def update(self, user, rule: Rule, validated_data: dict) -> Rule:
-        flag = validated_data.get("flag", rule.flag)
+        flag = rule.flag
         self._assert_flag_writable(flag, user)
+        # A rule belongs to one flag for life. Moving it would be authorized
+        # against the destination only, so a viewer on the source flag could
+        # strip its targeting by re-parenting the rule into a project of their
+        # own. PUT resends `flag`; the same value is not a change.
+        new_flag = validated_data.pop("flag", flag)
+        if new_flag.id != flag.id:
+            raise APIError(Error.IMMUTABLE_FIELD, extra=["flag"])
+        self._assert_variation_in_flag(flag, validated_data, current=rule)
         self._assert_segment_exists(flag, validated_data, current=rule)
         self._assert_attribute_present(validated_data, current=rule)
         self._assert_numeric_value(validated_data, current=rule)
@@ -71,6 +80,21 @@ class RuleService:
     @staticmethod
     def _assert_flag_writable(flag, user) -> None:
         AccessService.assert_can_write(user, flag.project)
+
+    @staticmethod
+    def _assert_variation_in_flag(flag, validated_data: dict, current: Rule = None) -> None:
+        """`serve_variation` must be one of this flag's own variations.
+
+        The serializer resolves it against every variation in the database, and
+        the engine serves its value verbatim — so without this, pointing a rule
+        at another tenant's variation id and evaluating with your own SDK key
+        reads that tenant's value.
+        """
+        variation = validated_data.get(
+            "serve_variation", current.serve_variation if current else None
+        )
+        if variation is not None and variation.flag_id != flag.id:
+            raise APIError(Error.VARIATION_NOT_IN_FLAG, extra=["Variation"])
 
     @staticmethod
     def _assert_segment_exists(flag, validated_data: dict, current: Rule = None) -> None:

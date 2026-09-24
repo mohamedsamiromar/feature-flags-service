@@ -270,6 +270,7 @@ def test_flag_create(auth_client, base):
 10. Segments do not nest; `SegmentRule` forbids the segment operators.
 11. Deleting a referenced segment (409) or a flag that gates another (409) is refused rather than left dangling.
 12. Bulk evaluation is the same engine as per-flag evaluation, not a second implementation — it calls `evaluate` and shares `_build_flag_data`.
+13. Every writable foreign key is ownership-checked in the service, on create **and** update. A `ModelSerializer` resolves a pk against the whole table, across every tenant, and the engine serves a referenced variation's value verbatim — `off_variation`, `fallthrough_variation`, and `serve_variation` once let any account read another tenant's values through its own SDK key. A child's parent (`Rule.flag`) is immutable after creation: a move is authorized against the destination only, so it lets a viewer strip targeting from a flag they cannot edit.
 
 ---
 
