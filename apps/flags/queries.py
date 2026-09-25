@@ -7,7 +7,7 @@ stays free of ORM exception handling.
 """
 
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import F, Max, Q
 
 from apps.core.errors import APIError, Error
 from apps.flags.models import (
@@ -47,6 +47,23 @@ class FlagQuery:
     @staticmethod
     def delete(flag: FeatureFlag) -> None:
         flag.delete()
+
+    @staticmethod
+    def with_foreign_variations():
+        """Flags whose off/fallthrough variation belongs to a different flag.
+
+        Only reachable from rows written before the write paths checked
+        ownership; see `clear_foreign_variation_refs`.
+        """
+        return (
+            FeatureFlag.objects
+            .filter(
+                Q(off_variation__isnull=False) & ~Q(off_variation__flag_id=F("id"))
+                | Q(fallthrough_variation__isnull=False)
+                & ~Q(fallthrough_variation__flag_id=F("id"))
+            )
+            .order_by("id")
+        )
 
     @staticmethod
     def env_ids_for(flag: FeatureFlag) -> list:

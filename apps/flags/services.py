@@ -1,3 +1,5 @@
+from django.db import transaction
+
 from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
 from apps.flags.models import FeatureFlag, FlagVersion
@@ -376,6 +378,81 @@ class FlagService:
         AuditService.log_delete(
             user=user, entity=prerequisite, old_value=old_snapshot
         )
+
+    # ------------------------------------------------------------------
+    # Data repair
+    # ------------------------------------------------------------------
+
+    def clear_foreign_variation_refs(self, apply: bool = False) -> list:
+        """Find — and with `apply`, clear — variation references that point at
+        another flag's variation.
+
+        Only rows written before the write paths checked ownership can hold
+        one, and the engine already refuses to serve them (`_variation_dict`).
+        Clearing them fixes what the dashboard shows and what a rollback would
+        snapshot. Returns one finding per reference; values are never included,
+        since a foreign value is exactly what must not be copied anywhere else.
+
+        Runs as the system (``user=None``) — every change is still audited and,
+        for flags, versioned.
+        """
+        from apps.rules.queries import RuleQuery
+
+        findings = []
+        with transaction.atomic():
+            for flag in FlagQuery.with_foreign_variations():
+                fields = [
+                    field for field in ("off_variation", "fallthrough_variation")
+                    if getattr(flag, f"{field}_id") is not None
+                    and getattr(flag, field).flag_id != flag.id
+                ]
+                findings += [
+                    self._finding("flag", flag.id, flag.id, field, getattr(flag, field))
+                    for field in fields
+                ]
+                if apply:
+                    old_snapshot = AuditService.snapshot(flag)
+                    for field in fields:
+                        setattr(flag, field, None)
+                    FlagQuery.save(flag, update_fields=[*fields, "updated_at"])
+                    self.invalidate_flag_caches(flag)
+                    self._record_version(flag, None, FlagVersion.ChangeAction.UPDATE)
+                    AuditService.log(
+                        user=None,
+                        action=AuditService.UPDATE,
+                        entity=flag,
+                        old_value=old_snapshot,
+                        new_value=AuditService.snapshot(flag),
+                    )
+
+            for rule in RuleQuery.with_foreign_serve_variation():
+                findings.append(self._finding(
+                    "rule", rule.id, rule.flag_id, "serve_variation", rule.serve_variation
+                ))
+                if apply:
+                    old_snapshot = AuditService.snapshot(rule)
+                    rule.serve_variation = None
+                    RuleQuery.save(rule, update_fields=["serve_variation", "updated_at"])
+                    self.invalidate_flag_caches(rule.flag)
+                    AuditService.log(
+                        user=None,
+                        action=AuditService.UPDATE,
+                        entity=rule,
+                        old_value=old_snapshot,
+                        new_value=AuditService.snapshot(rule),
+                    )
+        return findings
+
+    @staticmethod
+    def _finding(entity: str, entity_id: int, flag_id: int, field: str, variation) -> dict:
+        return {
+            "entity": entity,
+            "id": entity_id,
+            "flag_id": flag_id,
+            "field": field,
+            "variation_id": variation.id,
+            "variation_flag_id": variation.flag_id,
+        }
 
     @staticmethod
     def _assert_not_a_prerequisite(flag: FeatureFlag) -> None:

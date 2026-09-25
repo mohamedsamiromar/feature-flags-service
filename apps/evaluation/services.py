@@ -29,11 +29,19 @@ MAX_PREREQUISITE_DEPTH = 10
 CONFIG_FORMAT_VERSION = 1
 
 
-def _variation_dict(variation) -> Optional[dict]:
+def _variation_dict(variation, flag_id: int) -> Optional[dict]:
     """The cached shape of a variation. `id` is carried because prerequisites
     compare variation identity, not value — two variations of a flag may hold
-    the same value."""
-    if not variation:
+    the same value.
+
+    A variation belonging to a different flag is dropped, never served. The
+    write paths reject such references, but rows written before they did may
+    point at another tenant's variation, and serving it would hand that
+    tenant's value to whoever owns this flag. Dropping it matches rollback,
+    which clears a reference that no longer belongs to the flag. Costs no
+    query: `flag_id` is a column on the row already loaded.
+    """
+    if not variation or variation.flag_id != flag_id:
         return None
     return {"id": variation.id, "value": variation.value, "value_type": variation.value_type}
 
@@ -416,7 +424,7 @@ class FlagEvaluationService:
                 "value": rule.value,
                 "priority": rule.priority,
                 "rollout_percentage": rule.rollout_percentage,
-                "serve_variation": _variation_dict(rule.serve_variation),
+                "serve_variation": _variation_dict(rule.serve_variation, flag.id),
             }
             for rule in sorted(flag.rules.all(), key=lambda rule: rule.priority)
         ]
@@ -453,7 +461,7 @@ class FlagEvaluationService:
             "rules": rules,
             # user_key → variation, so the hot path is a dict lookup, not a scan.
             "targets": {
-                target.user_key: _variation_dict(target.variation)
+                target.user_key: _variation_dict(target.variation, flag.id)
                 for target in flag.targets.all()
             },
             "segments": segments,
@@ -464,8 +472,8 @@ class FlagEvaluationService:
                 }
                 for p in flag.prerequisites.all()
             ],
-            "off_variation": _variation_dict(flag.off_variation),
-            "fallthrough_variation": _variation_dict(flag.fallthrough_variation),
+            "off_variation": _variation_dict(flag.off_variation, flag.id),
+            "fallthrough_variation": _variation_dict(flag.fallthrough_variation, flag.id),
         }
 
     @staticmethod
