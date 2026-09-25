@@ -35,6 +35,9 @@ services:
 
   redis:
     image: redis:7
+    # Fails fast at `docker compose up` if REDIS_PASSWORD is missing, rather
+    # than silently starting an open Redis.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"]
     # Loopback only. This Redis has no password, and Django's cache pickles
     # what it stores — anyone who can write a `flags:*` key gets code
     # execution in the web process on the next evaluation.

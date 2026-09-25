@@ -36,7 +36,9 @@ Running the suite outside Docker needs Postgres and Redis reachable:
 
 ```bash
 docker compose up -d db redis
-DB_HOST=localhost DB_PORT=5434 REDIS_URL=redis://localhost:6379 pytest -q
+# Compose's Redis requires REDIS_PASSWORD (from .env)
+export $(grep '^REDIS_PASSWORD=' .env)
+DB_HOST=localhost DB_PORT=5434 REDIS_URL=redis://:$REDIS_PASSWORD@localhost:6379 pytest -q
 ```
 
 ---
@@ -78,7 +80,7 @@ The **project** is the tenancy boundary, not the user. Roles are `viewer < membe
 | App | Responsibility |
 |---|---|
 | `apps.accounts` | Custom `User` model, JWT auth URLs |
-| `apps.organizations` | `Organization`, `Membership`, `Project`, `AccessService` (RBAC) |
+| `apps.organizations` | `Organization`, `Membership`, `Invitation`, `Project`, `AccessService` (RBAC) |
 | `apps.core` | `BaseModel`, `Error`/`APIError` catalogue, `/healthz/` |
 | `apps.flags` | `FeatureFlag`, `Variation`, `FlagTarget`, `FlagPrerequisite`, `FlagVersion` |
 | `apps.rules` | `Rule` model, targeting rule API |
@@ -118,7 +120,7 @@ Cross-entity checks ("does this variation belong to this flag?") go in the **ser
 
 ### Error handling
 
-Add a new entry to the `Error` enum in `apps/core/errors.py` (unique negative code; **last used −417**) rather than a bespoke exception class. Services raise `APIError(Error.X, extra=[...])`; the global handler in `config/exception_handler.py` renders `{code, detail, alert}` with the declared status. Views need no `try/except`.
+Add a new entry to the `Error` enum in `apps/core/errors.py` (unique negative code; **last used −420**) rather than a bespoke exception class. Services raise `APIError(Error.X, extra=[...])`; the global handler in `config/exception_handler.py` renders `{code, detail, alert}` with the declared status. Views need no `try/except`.
 
 There is no `FlagArchivedError` or `DomainError` — the old `apps/core/exceptions.py` was deleted.
 
@@ -140,7 +142,7 @@ Only successful mutations are audited. A write rejected with a 400/409 changed n
 
 **`AuditService.REDACTED_FIELDS` strips secrets from snapshots**, keyed by `Model._meta.model_name` — today `SDKKey.hashed_key`. A registry rather than a per-call argument, because an argument is something a future caller forgets, and forgetting writes the secret into a second table with different access rules. Add to it whenever a model gains a credential-shaped field.
 
-Coverage is complete: flags, variations, environments, segments, targets, prerequisites, rules, SDK keys, organizations, memberships, and projects. Signup provisions its org/project/environments through the query layer and audits them explicitly — keep it that way, an audit invariant with one exception is the one found during an incident.
+Coverage is complete: flags, variations, environments, segments, targets, prerequisites, rules, SDK keys, organizations, memberships, invitations, and projects. Signup provisions its org/project/environments through the query layer and audits them explicitly — keep it that way, an audit invariant with one exception is the one found during an incident.
 
 ### Cache invalidation
 
@@ -271,6 +273,8 @@ def test_flag_create(auth_client, base):
 11. Deleting a referenced segment (409) or a flag that gates another (409) is refused rather than left dangling.
 12. Bulk evaluation is the same engine as per-flag evaluation, not a second implementation — it calls `evaluate` and shares `_build_flag_data`.
 13. Every writable foreign key is ownership-checked in the service, on create **and** update. A `ModelSerializer` resolves a pk against the whole table, across every tenant, and the engine serves a referenced variation's value verbatim — `off_variation`, `fallthrough_variation`, and `serve_variation` once let any account read another tenant's values through its own SDK key. A child's parent (`Rule.flag`) is immutable after creation: a move is authorized against the destination only, so it lets a viewer strip targeting from a flag they cannot edit.
+14. Only an owner may grant `owner`, or change or remove an owner's membership (`MembershipService._assert_may_touch_owner_rank`). ADMIN manages members, not the rank above it: an admin who can promote themselves lifts the last-owner guard, then demotes the real owner and deletes the org.
+15. Nobody joins an organization without consent. A `Membership` is created only by the invitee accepting an `Invitation` — there is no direct add. The inviter's authority is re-checked at accept time, so an invitation from someone who has since left or lost the rank it grants is void (409 `INVITATION_VOID`).
 
 ---
 
