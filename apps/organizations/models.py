@@ -59,6 +59,58 @@ class Membership(BaseModel):
         return f"{self.user_id}@{self.organization.slug}:{self.role}"
 
 
+class Invitation(BaseModel):
+    """A pending offer of membership. Joining an organization takes the
+    invitee's consent: the ``Membership`` is created only when they accept.
+
+    Rows are never deleted — a decided invitation keeps its status, so the
+    history of who was offered access, by whom, stays queryable.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        DECLINED = "declined", "Declined"
+        REVOKED = "revoked", "Revoked"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="invitations",
+    )
+    invitee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="invitations",
+    )
+    # SET_NULL, not CASCADE: an invitation whose sender is gone is void (the
+    # inviter's authority is re-checked on accept), but its record stays.
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="+",
+    )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True
+    )
+
+    class Meta:
+        constraints = [
+            # One open offer per user per org; decided ones do not count, so a
+            # declined user can be invited again.
+            models.UniqueConstraint(
+                fields=["organization", "invitee"],
+                condition=models.Q(status="pending"),
+                name="one_pending_invitation_per_user_per_org",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.invitee_id}@{self.organization.slug}:{self.role} ({self.status})"
+
+
 class Project(BaseModel):
     organization = models.ForeignKey(
         Organization,

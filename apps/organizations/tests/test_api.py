@@ -8,6 +8,7 @@ creation, and the "invisible to non-members" (404) contract.
 import pytest
 
 from apps.organizations.models import Membership, Project, Role
+from conftest import join_via_invitation
 
 ORG_BASE = "/api/v1/organizations"
 PROJ_BASE = "/api/v1/projects"
@@ -55,11 +56,7 @@ class TestOrganizationCRUD:
     def test_non_owner_cannot_delete_org(self, auth_client, api_client, other_user):
         auth_client.post(ORG_BASE + "/", {"name": "Acme"}, format="json")
         # Add other_user as a plain MEMBER.
-        auth_client.post(
-            f"{ORG_BASE}/acme/members/",
-            {"user": other_user.id, "role": Role.MEMBER},
-            format="json",
-        )
+        join_via_invitation(auth_client, "acme", other_user, Role.MEMBER)
         api_client.force_authenticate(other_user)
         resp = api_client.delete(f"{ORG_BASE}/acme/")
         assert resp.status_code == 403
@@ -70,49 +67,9 @@ class TestMembership:
     def _make_org(self, auth_client):
         auth_client.post(ORG_BASE + "/", {"name": "Acme"}, format="json")
 
-    def test_admin_can_add_member(self, auth_client, other_user):
-        self._make_org(auth_client)
-        resp = auth_client.post(
-            f"{ORG_BASE}/acme/members/",
-            {"user": other_user.id, "role": Role.MEMBER},
-            format="json",
-        )
-        assert resp.status_code == 201
-        assert Membership.objects.filter(
-            user=other_user, organization__slug="acme"
-        ).exists()
-
-    def test_adding_existing_member_returns_409(self, auth_client, other_user):
-        self._make_org(auth_client)
-        payload = {"user": other_user.id, "role": Role.MEMBER}
-        auth_client.post(f"{ORG_BASE}/acme/members/", payload, format="json")
-        resp = auth_client.post(f"{ORG_BASE}/acme/members/", payload, format="json")
-        assert resp.status_code == 409
-
-    def test_member_cannot_add_member(self, auth_client, api_client, other_user):
-        self._make_org(auth_client)
-        auth_client.post(
-            f"{ORG_BASE}/acme/members/",
-            {"user": other_user.id, "role": Role.MEMBER},
-            format="json",
-        )
-        api_client.force_authenticate(other_user)
-        from conftest import UserFactory
-        third = UserFactory()
-        resp = api_client.post(
-            f"{ORG_BASE}/acme/members/",
-            {"user": third.id, "role": Role.MEMBER},
-            format="json",
-        )
-        assert resp.status_code == 403
-
     def test_change_role(self, auth_client, other_user):
         self._make_org(auth_client)
-        auth_client.post(
-            f"{ORG_BASE}/acme/members/",
-            {"user": other_user.id, "role": Role.MEMBER},
-            format="json",
-        )
+        join_via_invitation(auth_client, "acme", other_user, Role.MEMBER)
         resp = auth_client.patch(
             f"{ORG_BASE}/acme/members/{other_user.id}/",
             {"role": Role.ADMIN},
@@ -155,11 +112,7 @@ class TestProjectCRUD:
 
     def test_member_cannot_create_project(self, auth_client, api_client, other_user):
         self._make_org(auth_client)
-        auth_client.post(
-            f"{ORG_BASE}/acme/members/",
-            {"user": other_user.id, "role": Role.MEMBER},
-            format="json",
-        )
+        join_via_invitation(auth_client, "acme", other_user, Role.MEMBER)
         api_client.force_authenticate(other_user)
         resp = api_client.post(
             PROJ_BASE + "/",

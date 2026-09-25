@@ -8,7 +8,7 @@ A project the caller cannot see surfaces as a 404, matching the API's existing
 """
 
 from apps.core.errors import APIError, Error
-from apps.organizations.models import Membership, Organization, Project
+from apps.organizations.models import Invitation, Membership, Organization, Project
 
 
 class OrganizationQuery:
@@ -79,6 +79,64 @@ class MembershipQuery:
     @staticmethod
     def count_with_role(organization, role: str) -> int:
         return Membership.objects.filter(organization=organization, role=role).count()
+
+
+class InvitationQuery:
+    """Every lookup is pending-only and scoped to one side of the invitation —
+    the org (for admins) or the invitee (for the user deciding). A decided
+    invitation, or someone else's, is a 404: there is nothing to act on."""
+
+    @staticmethod
+    def pending_for_org(organization):
+        return (
+            Invitation.objects
+            .filter(organization=organization, status=Invitation.Status.PENDING)
+            .select_related("organization", "invitee", "invited_by")
+            .order_by("-created_at")
+        )
+
+    @staticmethod
+    def pending_for_invitee(user):
+        return (
+            Invitation.objects
+            .filter(invitee=user, status=Invitation.Status.PENDING)
+            .select_related("organization", "invitee", "invited_by")
+            .order_by("-created_at")
+        )
+
+    @staticmethod
+    def get_pending_in_org(organization, invitation_id) -> Invitation:
+        try:
+            return InvitationQuery.pending_for_org(organization).get(pk=invitation_id)
+        except (Invitation.DoesNotExist, ValueError):
+            raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Invitation"])
+
+    @staticmethod
+    def get_pending_for_invitee(invitation_id, user, lock: bool = False) -> Invitation:
+        """`lock` takes a row lock (inside the caller's transaction) so two
+        concurrent accepts cannot both create a membership."""
+        qs = InvitationQuery.pending_for_invitee(user)
+        if lock:
+            qs = qs.select_for_update(of=("self",))
+        try:
+            return qs.get(pk=invitation_id)
+        except (Invitation.DoesNotExist, ValueError):
+            raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Invitation"])
+
+    @staticmethod
+    def pending_exists(organization, user) -> bool:
+        return Invitation.objects.filter(
+            organization=organization, invitee=user, status=Invitation.Status.PENDING
+        ).exists()
+
+    @staticmethod
+    def create(**fields) -> Invitation:
+        return Invitation.objects.create(**fields)
+
+    @staticmethod
+    def save(invitation: Invitation, update_fields=None) -> Invitation:
+        invitation.save(update_fields=update_fields)
+        return invitation
 
 
 class ProjectQuery:

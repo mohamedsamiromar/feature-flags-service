@@ -1,6 +1,7 @@
 """Query layer for the accounts app — the only place with ORM access to ``User``."""
 
 from apps.accounts.models import User
+from apps.core.errors import APIError, Error
 
 
 class UserQuery:
@@ -19,3 +20,10 @@ class UserQuery:
     @staticmethod
     def username_exists(username: str) -> bool:
         return User.objects.filter(username=username).exists()
+
+    @staticmethod
+    def get_by_username(username: str) -> User:
+        try:
+            return User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise APIError(Error.INSTANCE_NOT_FOUND, extra=["User"])

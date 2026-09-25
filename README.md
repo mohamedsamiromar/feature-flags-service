@@ -193,15 +193,21 @@ Flags, environments, and segments are addressed under their project.
 POST   /api/v1/auth/register/                        Create an account + personal org, project, envs
 POST   /api/v1/auth/token/                           Obtain access + refresh token
 POST   /api/v1/auth/token/refresh/                   Rotate access token
+POST   /api/v1/auth/token/blacklist/                 Log out (revoke a refresh token)
 
 GET    /api/v1/organizations/                        List your organizations
 POST   /api/v1/organizations/                        Create an organization
 GET    /api/v1/organizations/{slug}/                 Retrieve an organization
 DELETE /api/v1/organizations/{slug}/                 Delete (owner only)
 GET    /api/v1/organizations/{slug}/members/         List members
-POST   /api/v1/organizations/{slug}/members/         Add a member (admin+)
 PATCH  /api/v1/organizations/{slug}/members/{user}/  Change a member's role (admin+)
 DELETE /api/v1/organizations/{slug}/members/{user}/  Remove a member (admin+)
+GET    /api/v1/organizations/{slug}/invitations/     Pending invitations (admin+)
+POST   /api/v1/organizations/{slug}/invitations/     Invite by username (admin+)
+DELETE /api/v1/organizations/{slug}/invitations/{id}/ Revoke an invitation (admin+)
+GET    /api/v1/invitations/                          Your pending invitations
+POST   /api/v1/invitations/{id}/accept/              Join the organization
+POST   /api/v1/invitations/{id}/decline/             Decline
 
 GET    /api/v1/projects/                             List projects you can see
 POST   /api/v1/projects/                             Create a project (admin+)

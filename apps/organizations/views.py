@@ -3,18 +3,21 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.organizations.queries import (
+    InvitationQuery,
     MembershipQuery,
     OrganizationQuery,
     ProjectQuery,
 )
 from apps.organizations.serializers import (
+    InvitationSerializer,
+    InvitationWriteSerializer,
     MembershipRoleSerializer,
     MembershipSerializer,
-    MembershipWriteSerializer,
     OrganizationSerializer,
     ProjectSerializer,
 )
 from apps.organizations.services import (
+    InvitationService,
     MembershipService,
     OrganizationService,
     ProjectService,
@@ -22,6 +25,7 @@ from apps.organizations.services import (
 
 _org_service = OrganizationService()
 _membership_service = MembershipService()
+_invitation_service = InvitationService()
 _project_service = ProjectService()
 
 
@@ -37,10 +41,15 @@ class OrganizationViewSet(
     POST   /api/v1/organizations/                       — create (caller becomes OWNER)
     GET    /api/v1/organizations/{slug}/                — detail
     DELETE /api/v1/organizations/{slug}/                — delete (OWNER only)
-    GET    /api/v1/organizations/{slug}/members/        — list members
-    POST   /api/v1/organizations/{slug}/members/        — add member (ADMIN+)
-    PATCH  /api/v1/organizations/{slug}/members/{uid}/  — change role (ADMIN+)
-    DELETE /api/v1/organizations/{slug}/members/{uid}/  — remove member (ADMIN+)
+    GET    /api/v1/organizations/{slug}/members/            — list members
+    PATCH  /api/v1/organizations/{slug}/members/{uid}/      — change role (ADMIN+)
+    DELETE /api/v1/organizations/{slug}/members/{uid}/      — remove member (ADMIN+)
+    GET    /api/v1/organizations/{slug}/invitations/        — pending invitations (ADMIN+)
+    POST   /api/v1/organizations/{slug}/invitations/        — invite by username (ADMIN+)
+    DELETE /api/v1/organizations/{slug}/invitations/{id}/   — revoke (ADMIN+)
+
+    There is no POST to members/: a user joins by accepting an invitation
+    (see InvitationViewSet), never by being added.
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -59,21 +68,37 @@ class OrganizationViewSet(
         _org_service.delete(user=request.user, slug=kwargs[self.lookup_field])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=["get", "post"], url_path="members")
+    @action(detail=True, methods=["get"], url_path="members")
     def members(self, request, slug=None):
-        if request.method == "POST":
-            serializer = MembershipWriteSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            membership = _membership_service.add(
-                actor=request.user, slug=slug, **serializer.validated_data
-            )
-            return Response(
-                MembershipSerializer(membership).data, status=status.HTTP_201_CREATED
-            )
-
         org = OrganizationQuery.get_for_member(slug, request.user)
         qs = MembershipQuery.list_for_org(org)
         return Response(MembershipSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=["get", "post"], url_path="invitations")
+    def invitations(self, request, slug=None):
+        if request.method == "POST":
+            serializer = InvitationWriteSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            invitation = _invitation_service.invite(
+                actor=request.user, slug=slug, **serializer.validated_data
+            )
+            return Response(
+                InvitationSerializer(invitation).data, status=status.HTTP_201_CREATED
+            )
+
+        qs = _invitation_service.list_for_org(actor=request.user, slug=slug)
+        return Response(InvitationSerializer(qs, many=True).data)
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"invitations/(?P<invitation_id>[^/.]+)",
+    )
+    def invitation_detail(self, request, slug=None, invitation_id=None):
+        _invitation_service.revoke(
+            actor=request.user, slug=slug, invitation_id=invitation_id
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=True,
@@ -94,6 +119,32 @@ class OrganizationViewSet(
             role=serializer.validated_data["role"],
         )
         return Response(MembershipSerializer(membership).data)
+
+
+class InvitationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """
+    The invitee's side. Another user's invitation is a 404, as is a decided one.
+
+    GET    /api/v1/invitations/               — my pending invitations
+    POST   /api/v1/invitations/{id}/accept/   — join the organization
+    POST   /api/v1/invitations/{id}/decline/  — refuse
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = InvitationSerializer
+
+    def get_queryset(self):
+        return InvitationQuery.pending_for_invitee(self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        invitation = _invitation_service.accept(user=request.user, invitation_id=pk)
+        return Response(InvitationSerializer(invitation).data)
+
+    @action(detail=True, methods=["post"])
+    def decline(self, request, pk=None):
+        invitation = _invitation_service.decline(user=request.user, invitation_id=pk)
+        return Response(InvitationSerializer(invitation).data)
 
 
 class ProjectViewSet(

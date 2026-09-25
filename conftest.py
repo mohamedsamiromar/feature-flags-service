@@ -48,6 +48,24 @@ def personal_project_for(user, role=Role.OWNER) -> Project:
     return project
 
 
+def join_via_invitation(inviter_client, org_slug: str, user, role) -> None:
+    """Make `user` a member the only way the API allows: invite, then accept.
+
+    For tests that need a second member as setup. The inviter must be ADMIN+
+    (OWNER to grant owner).
+    """
+    invited = inviter_client.post(
+        f"/api/v1/organizations/{org_slug}/invitations/",
+        {"username": user.username, "role": role},
+        format="json",
+    )
+    assert invited.status_code == 201, invited.data
+    invitee_client = APIClient()
+    invitee_client.force_authenticate(user)
+    accepted = invitee_client.post(f"/api/v1/invitations/{invited.data['id']}/accept/")
+    assert accepted.status_code == 200, accepted.data
+
+
 # ---------------------------------------------------------------------------
 # Factories
 # ---------------------------------------------------------------------------

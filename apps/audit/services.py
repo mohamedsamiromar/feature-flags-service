@@ -34,6 +34,8 @@ class AuditService:
     ROLLBACK = "rollback"
     REVOKE = "revoke"
     ROTATE = "rotate"
+    ACCEPT = "accept"
+    DECLINE = "decline"
 
     # Fields that must never be copied into an audit entry, keyed by
     # `Model._meta.model_name`. A registry rather than a per-call argument: an

@@ -218,7 +218,9 @@
               "script": {
                 "exec": [
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('access_token', json.access);"
+                  "pm.collectionVariables.set('access_token', json.access);",
+                  "// Rotation blacklists the old refresh token, so keep the new one.",
+                  "if (json.refresh) pm.collectionVariables.set('refresh_token', json.refresh);"
                 ],
                 "type": "text/javascript"
               }
@@ -289,6 +291,26 @@
               "body": "{\n  \"detail\": \"Token is invalid or expired\",\n  \"code\": \"token_not_valid\"\n}"
             }
           ]
+        },
+        {
+          "name": "Logout (Revoke Refresh Token)",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "noauth"},
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{base_url}}/auth/token/blacklist/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "token", "blacklist", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Revokes the refresh token: it can no longer be used to refresh. The access token it issued stays valid until it expires (JWT_ACCESS_MINUTES)."
+          },
+          "response": []
         }
       ]
     },
@@ -372,23 +394,97 @@
           "response": []
         },
         {
-          "name": "Add Member",
+          "name": "Invite Member",
           "request": {
             "method": "POST",
             "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
             "url": {
-              "raw": "{{base_url}}/organizations/:slug/members/",
+              "raw": "{{base_url}}/organizations/:slug/invitations/",
               "host": ["{{base_url}}"],
-              "path": ["organizations", ":slug", "members", ""],
+              "path": ["organizations", ":slug", "invitations", ""],
               "variable": [{"key": "slug", "value": "acme"}]
             },
             "header": [{"key": "Content-Type", "value": "application/json"}],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": 2,\n  \"role\": \"member\"\n}",
+              "raw": "{\n  \"username\": \"alice\",\n  \"role\": \"member\"\n}",
               "options": {"raw": {"language": "json"}}
             },
-            "description": "Admin or above. Roles: viewer, member, admin, owner."
+            "description": "Admin or above; inviting as owner requires owner. Creates a PENDING invitation \u2014 the user is not a member until they accept (Accept Invitation). There is no way to add a member directly. Roles: viewer, member, admin, owner."
+          },
+          "response": []
+        },
+        {
+          "name": "List Pending Invitations",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/invitations/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", "invitations", ""],
+              "variable": [{"key": "slug", "value": "acme"}]
+            },
+            "description": "Admin or above. Pending invitations for this organization."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Invitation",
+          "request": {
+            "method": "DELETE",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/organizations/:slug/invitations/:invitation_id/",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", ":slug", "invitations", ":invitation_id", ""],
+              "variable": [{"key": "slug", "value": "acme"}, {"key": "invitation_id", "value": "1"}]
+            },
+            "description": "Admin or above; revoking an owner invitation requires owner. 204."
+          },
+          "response": []
+        },
+        {
+          "name": "My Invitations",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/invitations/",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", ""]
+            },
+            "description": "Invitations sent to the authenticated user that are still pending."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Invitation",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/invitations/:invitation_id/accept/",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", ":invitation_id", "accept", ""],
+              "variable": [{"key": "invitation_id", "value": "1"}]
+            },
+            "description": "Invitee only (anyone else gets 404). Creates the membership. 409 INVITATION_VOID if the inviter has since left the organization or lost the right to grant this role."
+          },
+          "response": []
+        },
+        {
+          "name": "Decline Invitation",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/invitations/:invitation_id/decline/",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", ":invitation_id", "decline", ""],
+              "variable": [{"key": "invitation_id", "value": "1"}]
+            },
+            "description": "Invitee only. The organization can invite again later."
           },
           "response": []
         },

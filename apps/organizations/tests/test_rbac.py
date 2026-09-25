@@ -168,15 +168,6 @@ class TestOwnerRankIsOwnerOnly:
         assert resp.status_code == 403
         assert self._role(org, admin) == Role.ADMIN
 
-    def test_admin_cannot_add_an_owner(self, org):
-        org, _, admin = org
-        newcomer = UserFactory()
-        resp = _client(admin).post(
-            self._members_url(org), {"user": newcomer.id, "role": Role.OWNER}, format="json"
-        )
-        assert resp.status_code == 403
-        assert not Membership.objects.filter(organization=org, user=newcomer).exists()
-
     def test_admin_cannot_demote_an_owner(self, org):
         org, owner, admin = org
         # A second owner, so the last-owner guard is not what stops this.

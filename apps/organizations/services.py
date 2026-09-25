@@ -7,12 +7,15 @@ membership-scoped queries, which 404 instead (an org/project you are not in is
 invisible, not forbidden).
 """
 
+from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
+from apps.accounts.queries import UserQuery
 from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
-from apps.organizations.models import Membership, Organization, Project, Role
+from apps.organizations.models import Invitation, Membership, Organization, Project, Role
 from apps.organizations.queries import (
+    InvitationQuery,
     MembershipQuery,
     OrganizationQuery,
     ProjectQuery,
@@ -104,27 +107,10 @@ class MembershipService:
     acting user recorded on each entry is the admin who made it, not the member
     it was made to — the trail answers "who granted this", which is the question
     that matters.
+
+    There is no ``add``: memberships are created by accepting an invitation
+    (``InvitationService``), so nobody joins an organization without consent.
     """
-
-    def add(self, actor, slug: str, user, role: str) -> Membership:
-        # `user` is the target user's id (from MembershipWriteSerializer).
-        org = OrganizationQuery.get_for_member(slug, actor)
-        actor_role = AccessService.assert_can_admin(actor, org.id)
-        self._assert_may_touch_owner_rank(actor_role, role)
-        if MembershipQuery.role_for(user, org.id) is not None:
-            raise APIError(Error.ALREADY_IN_STATE, extra=["User", "a member"])
-
-        membership = MembershipQuery.create(
-            organization=org, user_id=user, role=role
-        )
-        AuditService.log(
-            user=actor,
-            action=AuditService.CREATE,
-            entity=membership,
-            old_value=None,
-            new_value=AuditService.snapshot(membership),
-        )
-        return membership
 
     def change_role(self, actor, slug: str, user_id, role: str) -> Membership:
         org = OrganizationQuery.get_for_member(slug, actor)
@@ -177,6 +163,119 @@ class MembershipService:
     def _assert_not_last_owner(org) -> None:
         if MembershipQuery.count_with_role(org, Role.OWNER) <= 1:
             raise APIError(Error.LAST_OWNER)
+
+
+class InvitationService:
+    """Joining an organization takes the invitee's consent.
+
+    An admin invites by username; the ``Membership`` exists only once the
+    invitee accepts. Every step is audited, and the membership itself is
+    attributed to the *inviter* — consistent with ``MembershipService``, the
+    trail answers "who granted this", not "who clicked accept".
+
+    The grant is the inviter's authority, so it is re-checked at accept time:
+    an invitation from someone who has since left, or lost the rank it grants,
+    is void. Otherwise a demoted owner's outstanding invitations would keep
+    handing out the rank they no longer hold.
+    """
+
+    def invite(self, actor, slug: str, username: str, role: str) -> Invitation:
+        org = OrganizationQuery.get_for_member(slug, actor)
+        actor_role = AccessService.assert_can_admin(actor, org.id)
+        MembershipService._assert_may_touch_owner_rank(actor_role, role)
+
+        invitee = UserQuery.get_by_username(username)
+        if MembershipQuery.role_for(invitee, org.id) is not None:
+            raise APIError(Error.ALREADY_IN_STATE, extra=["User", "a member"])
+        if InvitationQuery.pending_exists(org, invitee):
+            raise APIError(Error.ALREADY_IN_STATE, extra=["User", "invited"])
+
+        try:
+            # Savepoint: two concurrent invites both pass the check above, and
+            # the loser hits the partial unique constraint instead.
+            with transaction.atomic():
+                invitation = InvitationQuery.create(
+                    organization=org, invitee=invitee, invited_by=actor, role=role
+                )
+        except IntegrityError:
+            raise APIError(Error.ALREADY_IN_STATE, extra=["User", "invited"])
+
+        AuditService.log(
+            user=actor,
+            action=AuditService.CREATE,
+            entity=invitation,
+            old_value=None,
+            new_value=AuditService.snapshot(invitation),
+        )
+        return invitation
+
+    def list_for_org(self, actor, slug: str):
+        org = OrganizationQuery.get_for_member(slug, actor)
+        AccessService.assert_can_admin(actor, org.id)
+        return InvitationQuery.pending_for_org(org)
+
+    def revoke(self, actor, slug: str, invitation_id) -> None:
+        org = OrganizationQuery.get_for_member(slug, actor)
+        actor_role = AccessService.assert_can_admin(actor, org.id)
+        invitation = InvitationQuery.get_pending_in_org(org, invitation_id)
+        # Withdrawing an owner invitation is as privileged as issuing one.
+        MembershipService._assert_may_touch_owner_rank(actor_role, invitation.role)
+        self._decide(invitation, actor, Invitation.Status.REVOKED, AuditService.REVOKE)
+
+    def accept(self, user, invitation_id) -> Invitation:
+        with transaction.atomic():
+            invitation = InvitationQuery.get_pending_for_invitee(
+                invitation_id, user, lock=True
+            )
+            org = invitation.organization
+            self._assert_inviter_can_still_grant(invitation)
+            if MembershipQuery.role_for(user, org.id) is not None:
+                raise APIError(Error.ALREADY_IN_STATE, extra=["User", "a member"])
+
+            membership = MembershipQuery.create(
+                organization=org, user=user, role=invitation.role
+            )
+            self._decide(invitation, user, Invitation.Status.ACCEPTED, AuditService.ACCEPT)
+            AuditService.log(
+                user=invitation.invited_by,
+                action=AuditService.CREATE,
+                entity=membership,
+                old_value=None,
+                new_value=AuditService.snapshot(membership),
+            )
+        return invitation
+
+    def decline(self, user, invitation_id) -> Invitation:
+        invitation = InvitationQuery.get_pending_for_invitee(invitation_id, user)
+        self._decide(invitation, user, Invitation.Status.DECLINED, AuditService.DECLINE)
+        return invitation
+
+    @staticmethod
+    def _decide(invitation: Invitation, actor, status: str, action: str) -> None:
+        old_snapshot = AuditService.snapshot(invitation)
+        invitation.status = status
+        InvitationQuery.save(invitation, update_fields=["status", "updated_at"])
+        AuditService.log(
+            user=actor,
+            action=action,
+            entity=invitation,
+            old_value=old_snapshot,
+            new_value=AuditService.snapshot(invitation),
+        )
+
+    @staticmethod
+    def _assert_inviter_can_still_grant(invitation: Invitation) -> None:
+        inviter_role = (
+            MembershipQuery.role_for(invitation.invited_by, invitation.organization_id)
+            if invitation.invited_by_id
+            else None
+        )
+        if (
+            inviter_role is None
+            or Role.rank(inviter_role) < Role.rank(Role.ADMIN)
+            or (invitation.role == Role.OWNER and inviter_role != Role.OWNER)
+        ):
+            raise APIError(Error.INVITATION_VOID)
 
 
 class ProjectService:

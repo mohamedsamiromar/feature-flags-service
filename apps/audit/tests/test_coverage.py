@@ -17,7 +17,7 @@ from apps.organizations.models import Membership, Organization, Project, Role
 from apps.rules.models import Operator, Rule
 from apps.sdk_keys.models import SDKKey
 
-from conftest import UserFactory
+from conftest import UserFactory, join_via_invitation
 
 
 def entries(entity_type, action=None):
@@ -213,37 +213,13 @@ class TestOrganizationAudit:
         assert log.old_value["slug"] == slug
         assert not Organization.objects.filter(slug=slug).exists()
 
-    def test_adding_a_member_records_the_admin_who_did_it(self, auth_client, user):
-        """The trail answers "who granted this", not "who received it"."""
-        created = auth_client.post(
-            "/api/v1/organizations/", {"name": "Acme"}, format="json"
-        )
-        newcomer = UserFactory()
-
-        response = auth_client.post(
-            f"/api/v1/organizations/{created.data['slug']}/members/",
-            {"user": newcomer.id, "role": Role.MEMBER},
-            format="json",
-        )
-        assert response.status_code == status.HTTP_201_CREATED
-
-        log = entries("membership", AuditService.CREATE).filter(
-            new_value__user=newcomer.id
-        ).get()
-        assert log.user == user
-        assert log.user != newcomer
-
     def test_role_change_records_the_privilege_move(self, auth_client):
         created = auth_client.post(
             "/api/v1/organizations/", {"name": "Acme"}, format="json"
         )
         slug = created.data["slug"]
         newcomer = UserFactory()
-        auth_client.post(
-            f"/api/v1/organizations/{slug}/members/",
-            {"user": newcomer.id, "role": Role.VIEWER},
-            format="json",
-        )
+        join_via_invitation(auth_client, slug, newcomer, Role.VIEWER)
 
         auth_client.patch(
             f"/api/v1/organizations/{slug}/members/{newcomer.id}/",
@@ -261,11 +237,7 @@ class TestOrganizationAudit:
         )
         slug = created.data["slug"]
         newcomer = UserFactory()
-        auth_client.post(
-            f"/api/v1/organizations/{slug}/members/",
-            {"user": newcomer.id, "role": Role.MEMBER},
-            format="json",
-        )
+        join_via_invitation(auth_client, slug, newcomer, Role.MEMBER)
 
         auth_client.delete(f"/api/v1/organizations/{slug}/members/{newcomer.id}/")
 

@@ -8,7 +8,7 @@ logger = logging.getLogger("django")
 
 # Business error codes are negative and stable; the HTTP status is what clients
 # branch on, while `code` gives a precise, language-independent handle for a
-# specific failure. Keep codes unique. Last used code: -419.
+# specific failure. Keep codes unique. Last used code: -420.
 
 
 class Error(Enum):
@@ -106,6 +106,11 @@ class Error(Enum):
         "code": -419,
         "http_status": status.HTTP_409_CONFLICT,
         "detail": _("The username ({}) is not available."),
+    }
+    INVITATION_VOID = {
+        "code": -420,
+        "http_status": status.HTTP_409_CONFLICT,
+        "detail": _("This invitation is no longer valid: whoever sent it can no longer grant this role."),
     }
     NON_NUMERIC_COMPARISON = {
         "code": -418,

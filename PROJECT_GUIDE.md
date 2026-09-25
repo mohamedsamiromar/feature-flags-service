@@ -207,7 +207,8 @@ Every model inherits `core.BaseModel` (`id`, `created_at`, `updated_at`) unless 
 | --- | --- | --- |
 | `POST /auth/register/` | Self-serve signup. Creates the user **and** the tenancy they need to do anything: a personal organization they own, a `Default` project, and the three standard environments. Returns a JWT pair so the next call needs no second round trip. Atomic — a user with no organization is an account the API cannot repair. Own throttle scope (`registration`, 10/hour): it is the only anonymous endpoint whose abuse leaves rows behind. | `RegistrationService` → `accounts.User`, `organizations.{Organization,Membership,Project}`, `environment.Environment` |
 | `POST /auth/token/` | Exchange username+password for an `access`+`refresh` JWT pair. | `TokenObtainPairView` → `accounts.User` |
-| `POST /auth/token/refresh/` | Trade a refresh token for a fresh access token. | `TokenRefreshView` |
+| `POST /auth/token/refresh/` | Trade a refresh token for a fresh access token. Rotates: the old refresh token is blacklisted. | `TokenRefreshView` |
+| `POST /auth/token/blacklist/` | Log out: revoke a refresh token. | `TokenBlacklistView` |
 
 > Short-lived access tokens limit the blast radius of a leak; the refresh token keeps
 > sessions alive without storing passwords. Username uniqueness is enforced by the
@@ -224,9 +225,14 @@ Every model inherits `core.BaseModel` (`id`, `created_at`, `updated_at`) unless 
 | `GET /organizations/{slug}/` | Retrieve. Not a member → 404. | `OrganizationQuery.get_for_member` |
 | `DELETE /organizations/{slug}/` | Delete. **Owner only.** Cascades to everything below it. | `AccessService.assert_is_owner` |
 | `GET /organizations/{slug}/members/` | List members and their roles. | `MembershipQuery` |
-| `POST /organizations/{slug}/members/` | Add a member with a role. **Admin+.** | `OrganizationService.add_member` |
-| `PATCH /organizations/{slug}/members/{user_id}/` | Change a role. **Admin+.** Demoting the last owner → 409 `LAST_OWNER`. | `OrganizationService.change_role` |
-| `DELETE /organizations/{slug}/members/{user_id}/` | Remove a member. **Admin+.** Removing the last owner → 409. | `OrganizationService.remove_member` |
+| `PATCH /organizations/{slug}/members/{user_id}/` | Change a role. **Admin+**; granting owner or touching an owner's membership is **owner only**. Demoting the last owner → 409 `LAST_OWNER`. | `MembershipService.change_role` |
+| `DELETE /organizations/{slug}/members/{user_id}/` | Remove a member. **Admin+** (owner to remove an owner). Removing the last owner → 409. | `MembershipService.remove` |
+| `POST /organizations/{slug}/invitations/` | Invite a user by username. **Admin+** (owner to invite an owner). Nobody becomes a member without accepting — there is no direct add. | `InvitationService.invite` → `Invitation` |
+| `GET /organizations/{slug}/invitations/` | Pending invitations. **Admin+.** | `InvitationQuery.pending_for_org` |
+| `DELETE /organizations/{slug}/invitations/{id}/` | Revoke a pending invitation. **Admin+.** | `InvitationService.revoke` |
+| `GET /invitations/` | The caller's own pending invitations. | `InvitationQuery.pending_for_invitee` |
+| `POST /invitations/{id}/accept/` | Join. Invitee only. 409 `INVITATION_VOID` if the inviter has since left or lost the right to grant the role. | `InvitationService.accept` → `Membership` |
+| `POST /invitations/{id}/decline/` | Decline. Invitee only. | `InvitationService.decline` |
 | `GET /projects/` | List projects in organizations you belong to. | `ProjectQuery.list_for_member` |
 | `POST /projects/` | Create a project in an organization. **Admin+.** | `ProjectService.create` → `Project` |
 | `GET /projects/{key}/` | Retrieve a project. | `ProjectQuery.get_for_member` |
@@ -545,6 +551,7 @@ attach to.
 POST   /api/v1/auth/register/
 POST   /api/v1/auth/token/
 POST   /api/v1/auth/token/refresh/
+POST   /api/v1/auth/token/blacklist/
 
 # Organizations & projects
 GET    /api/v1/organizations/
@@ -552,9 +559,14 @@ POST   /api/v1/organizations/
 GET    /api/v1/organizations/{slug}/
 DELETE /api/v1/organizations/{slug}/                        (owner)
 GET    /api/v1/organizations/{slug}/members/
-POST   /api/v1/organizations/{slug}/members/                (admin+)
 PATCH  /api/v1/organizations/{slug}/members/{user_id}/      (admin+)
 DELETE /api/v1/organizations/{slug}/members/{user_id}/      (admin+)
+GET    /api/v1/organizations/{slug}/invitations/            (admin+)
+POST   /api/v1/organizations/{slug}/invitations/            (admin+)
+DELETE /api/v1/organizations/{slug}/invitations/{id}/       (admin+)
+GET    /api/v1/invitations/
+POST   /api/v1/invitations/{id}/accept/
+POST   /api/v1/invitations/{id}/decline/
 GET    /api/v1/projects/
 POST   /api/v1/projects/                                    (admin+)
 GET    /api/v1/projects/{key}/
