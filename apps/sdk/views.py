@@ -52,6 +52,7 @@ class SDKEvaluateFlagView(APIView):
             project_id=sdk_key.environment.project_id,
             user_context=user_context,
             env_id=sdk_key.environment_id,
+            client_side_only=sdk_key.client_side_only,
         )
 
         log_evaluation.delay(
@@ -114,6 +115,7 @@ class SDKEvaluateAllFlagsView(APIView):
             project_id=sdk_key.environment.project_id,
             env_id=sdk_key.environment_id,
             user_context=user_context,
+            client_side_only=sdk_key.client_side_only,
         )
 
         # Deliberately no impression logging here. A bootstrap resolves every
@@ -264,6 +266,7 @@ class SDKImpressionsView(APIView):
             project_id=sdk_key.environment.project_id,
             env_id=sdk_key.environment_id,
             impressions=serializer.validated_data["impressions"],
+            client_side_only=sdk_key.client_side_only,
         )
 
         return Response(

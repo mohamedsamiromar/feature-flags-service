@@ -55,7 +55,9 @@ class EvaluationQuery:
         )
 
     @staticmethod
-    def flag_ids_by_key(flag_keys, project_id: int, env_id: int) -> dict:
+    def flag_ids_by_key(
+        flag_keys, project_id: int, env_id: int, client_side_only: bool = False
+    ) -> dict:
         """`{flag_key: flag_id}` for the keys that are live in this environment.
 
         One indexed read for a whole impression batch, rather than a lookup per
@@ -66,16 +68,15 @@ class EvaluationQuery:
         """
         if not flag_keys:
             return {}
-        return dict(
-            EnvironmentFlag.objects
-            .filter(
-                feature_flag__key__in=set(flag_keys),
-                feature_flag__project_id=project_id,
-                feature_flag__is_archived=False,
-                environment_id=env_id,
-            )
-            .values_list("feature_flag__key", "feature_flag_id")
+        qs = EnvironmentFlag.objects.filter(
+            feature_flag__key__in=set(flag_keys),
+            feature_flag__project_id=project_id,
+            feature_flag__is_archived=False,
+            environment_id=env_id,
         )
+        if client_side_only:
+            qs = qs.filter(feature_flag__client_side_available=True)
+        return dict(qs.values_list("feature_flag__key", "feature_flag_id"))
 
     @staticmethod
     def get_active_env_flags(flag_keys, project_id: int, env_id: int) -> list:

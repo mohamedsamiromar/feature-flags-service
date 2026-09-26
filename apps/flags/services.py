@@ -476,6 +476,7 @@ class FlagService:
         "description",
         "is_enabled",
         "rollout_percentage",
+        "client_side_available",
         "flag_type",
         "off_variation_id",
         "fallthrough_variation_id",

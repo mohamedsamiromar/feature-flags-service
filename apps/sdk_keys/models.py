@@ -28,5 +28,11 @@ class SDKKey(BaseModel):
     is_active = models.BooleanField(default=True, db_index=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
 
+    @property
+    def client_side_only(self) -> bool:
+        """A client key ships to browsers, so it only reaches flags marked
+        `client_side_available`. See `FeatureFlag.client_side_available`."""
+        return self.key_type == self.KeyType.CLIENT
+
     def __str__(self):
         return f"{self.name} ({self.prefix}...)"

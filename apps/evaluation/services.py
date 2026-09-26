@@ -5,7 +5,7 @@ from typing import Any, Optional
 from django.conf import settings as django_settings
 from django.core.cache import cache
 
-from apps.core.errors import APIError
+from apps.core.errors import APIError, Error
 from apps.evaluation.queries import EvaluationQuery
 from apps.evaluation.tasks import log_evaluations
 from apps.rules.models import Operator
@@ -67,10 +67,17 @@ class FlagEvaluationService:
         project_id: int,
         user_context: dict,
         env_id: int,
+        client_side_only: bool = False,
         _chain: tuple = (),
         _preloaded: Optional[dict] = None,
     ) -> EvaluationResult:
         """Resolve `flag_key` for a user.
+
+        `client_side_only` is set for client SDK keys: a flag not marked
+        `client_side_available` is then a 404, the same response as a key that
+        does not exist, so the answer does not even confirm it is there. It
+        applies to the flag asked for only — prerequisites underneath resolve
+        normally, since hiding a flag hides its result, not its effect.
 
         `_chain` carries the prerequisite flags already being resolved further
         up the stack; `_preloaded` is the `{flag_key: flag_data}` map a bulk
@@ -78,6 +85,8 @@ class FlagEvaluationService:
         internal and callers never pass them.
         """
         flag_data = self._get_flag_data(flag_key, project_id, env_id, _preloaded)
+        if client_side_only and not self._client_visible(flag_data):
+            raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Flag"])
 
         if not flag_data["is_enabled"]:
             return self._from_variation(flag_key, flag_data, flag_data["off_variation"])
@@ -122,7 +131,10 @@ class FlagEvaluationService:
             )
         return self._from_variation(flag_key, flag_data, flag_data["off_variation"], default=False)
 
-    def evaluate_all(self, project_id: int, env_id: int, user_context: dict) -> list:
+    def evaluate_all(
+        self, project_id: int, env_id: int, user_context: dict,
+        client_side_only: bool = False,
+    ) -> list:
         """Resolve every flag configured in this environment for one user.
 
         The bulk counterpart of `evaluate`, and the reason it exists: an SDK
@@ -141,6 +153,11 @@ class FlagEvaluationService:
         The resolved payloads are handed to `evaluate` as `_preloaded`, so
         per-flag evaluation — and prerequisite resolution underneath it —
         touches neither Redis nor the database again.
+
+        With `client_side_only`, flags not marked `client_side_available` are
+        left out of the *result* — but still preloaded, because a visible flag
+        may be gated behind a hidden one, and resolving that gate from the map
+        is what keeps this at a fixed number of round trips.
         """
         flag_keys = EvaluationQuery.active_flag_keys(project_id, env_id)
         if not flag_keys:
@@ -161,6 +178,7 @@ class FlagEvaluationService:
                 _preloaded=payloads,
             )
             for flag_key in sorted(payloads)
+            if not client_side_only or self._client_visible(payloads[flag_key])
         ]
 
     def _preload_flag_data(self, flag_keys, project_id: int, env_id: int) -> dict:
@@ -253,7 +271,9 @@ class FlagEvaluationService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def record_impressions(project_id: int, env_id: int, impressions: list) -> dict:
+    def record_impressions(
+        project_id: int, env_id: int, impressions: list, client_side_only: bool = False
+    ) -> dict:
         """Queue a batch of locally-evaluated impressions and report what stuck.
 
         The counterpart to the config download. An SDK that evaluates in-process
@@ -272,11 +292,16 @@ class FlagEvaluationService:
         named in the return value. An SDK holding a config from before a flag
         was archived would otherwise never flush again — one stale key would
         reject every future request, losing the impressions either side of it.
+
+        With `client_side_only`, a flag hidden from client keys counts as
+        unknown: a client SDK was never served it, so an impression for it is
+        not one this key can report.
         """
         flag_ids = EvaluationQuery.flag_ids_by_key(
             [impression["flag_key"] for impression in impressions],
             project_id,
             env_id,
+            client_side_only=client_side_only,
         )
 
         accepted, dropped = [], set()
@@ -458,6 +483,7 @@ class FlagEvaluationService:
             "flag_type": flag.flag_type,
             "is_enabled": env_flag.is_enabled,
             "rollout_percentage": env_flag.rollout_percentage,
+            "client_side_available": flag.client_side_available,
             "rules": rules,
             # user_key → variation, so the hot path is a dict lookup, not a scan.
             "targets": {
@@ -475,6 +501,16 @@ class FlagEvaluationService:
             "off_variation": _variation_dict(flag.off_variation, flag.id),
             "fallthrough_variation": _variation_dict(flag.fallthrough_variation, flag.id),
         }
+
+    @staticmethod
+    def _client_visible(flag_data: dict) -> bool:
+        """Whether a client SDK key may see this flag.
+
+        `.get(..., True)`: an entry cached before this field existed belongs to
+        a flag the migration marked visible, and entries outlive a deploy by up
+        to the TTL.
+        """
+        return flag_data.get("client_side_available", True)
 
     @staticmethod
     def _from_variation(

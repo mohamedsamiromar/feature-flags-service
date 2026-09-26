@@ -36,6 +36,9 @@ class TestSDKEvaluateAuthentication:
         assert resp.status_code == 200
 
     def test_valid_client_key_also_accepted(self, api_client, environment, environment_flag):
+        # Client keys only reach flags opted in to client-side use.
+        environment_flag.feature_flag.client_side_available = True
+        environment_flag.feature_flag.save(update_fields=["client_side_available"])
         client_key = SDKKeyFactory(
             environment=environment,
             key_type="client",

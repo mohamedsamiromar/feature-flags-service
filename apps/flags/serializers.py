@@ -77,6 +77,7 @@ class FeatureFlagSerializer(serializers.ModelSerializer):
             "id", "name", "key", "description",
             "flag_type",
             "is_enabled", "rollout_percentage",
+            "client_side_available",
             "off_variation", "fallthrough_variation",
             "is_archived",
             "variations",

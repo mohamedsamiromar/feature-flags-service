@@ -230,6 +230,14 @@ Do not write new operators that coerce types without deciding what a failed coer
 
 Do not "restore" logging to the bootstrap endpoint. Impressions for those flags belong to `POST /sdk/impressions/`, where the SDK reports what it actually used. `TestBulkImpressionLogging` fails if a task is dispatched or a row is written.
 
+### Client keys see only client-side flags
+
+A `sdk_cli_` key ships to browsers, so it is public. It reaches only flags with `client_side_available=True`: `evaluate`, `evaluate_all`, and `record_impressions` take `client_side_only` (views pass `sdk_key.client_side_only`). A hidden flag is a 404 **identical to a missing key** — a different body would confirm it exists.
+
+Hidden flags are still **preloaded** in `evaluate_all` and resolved as prerequisites. Filter the result list, never the key index: a visible flag gated behind a hidden one must resolve through it, from the preloaded map, or the bulk path gains a round trip per hidden gate.
+
+`client_side_only` applies to the top-level flag only; the prerequisite recursion must keep its default. New flags default to hidden; migration `flags.0014` marked pre-existing flags visible so live browser SDKs kept working.
+
 ### Archived flags
 
 Archived flags must not be mutable: call `FlagService._assert_active(flag)`, which raises `APIError(Error.FLAG_ARCHIVED)` (409). The SDK evaluate endpoint returns 404 for archived flags — never serve them.
@@ -275,6 +283,7 @@ def test_flag_create(auth_client, base):
 13. Every writable foreign key is ownership-checked in the service, on create **and** update. A `ModelSerializer` resolves a pk against the whole table, across every tenant, and the engine serves a referenced variation's value verbatim — `off_variation`, `fallthrough_variation`, and `serve_variation` once let any account read another tenant's values through its own SDK key. The engine enforces it too: `_variation_dict` drops a variation whose `flag_id` is not the flag's, because rows written before the write-path check still exist — do not remove it as redundant. `manage.py clear_foreign_variation_refs [--apply]` finds and clears those rows. A child's parent (`Rule.flag`) is immutable after creation: a move is authorized against the destination only, so it lets a viewer strip targeting from a flag they cannot edit.
 14. Only an owner may grant `owner`, or change or remove an owner's membership (`MembershipService._assert_may_touch_owner_rank`). ADMIN manages members, not the rank above it: an admin who can promote themselves lifts the last-owner guard, then demotes the real owner and deletes the org.
 15. Nobody joins an organization without consent. A `Membership` is created only by the invitee accepting an `Invitation` — there is no direct add. The inviter's authority is re-checked at accept time, so an invitation from someone who has since left or lost the rank it grants is void (409 `INVITATION_VOID`).
+16. A client SDK key reaches only flags marked `client_side_available`, and a hidden flag is indistinguishable from a missing one. New flags start hidden.
 
 ---
 

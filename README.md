@@ -154,6 +154,7 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 ### SDK keys
 
 - **Opaque tokens** — server (`sdk_srv_`) and client (`sdk_cli_`) types, each scoped to one environment.
+- **Client keys see only client-side flags** — a `sdk_cli_` key ships to browsers, so anyone can read it. It reaches only flags marked `client_side_available`; any other flag is a `404` on `POST /sdk/evaluate/`, identical to a key that does not exist, is left out of the bootstrap, and has its impressions dropped. New flags start hidden; flags that existed before the field was added were migrated to visible. Server keys see everything.
 - **Hashed at rest** — the raw key is returned once on creation and never stored. Only a SHA-256 hash is persisted; the 16-char prefix is kept for display.
 - **The key is the principal** — SDK requests authenticate as the key itself, not as a user. The environment and project are derived from it, so callers never pass `env_id`.
 - **Rotation** — `POST /sdk-keys/{id}/rotate/` revokes the old key and issues a replacement in one request.

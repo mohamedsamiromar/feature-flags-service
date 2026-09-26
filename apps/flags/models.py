@@ -20,6 +20,11 @@ class FeatureFlag(BaseModel):
     is_enabled = models.BooleanField(default=False)
     rollout_percentage = models.IntegerField(default=0)
     is_archived = models.BooleanField(default=False, db_index=True)
+    # Whether client SDK keys (`sdk_cli_`) can see this flag. Those keys ship
+    # to browsers, so anyone can read one — a flag reachable through them
+    # publishes its key and served value. Off by default: exposing a flag to
+    # the public is an explicit choice. Server keys ignore this field.
+    client_side_available = models.BooleanField(default=False)
     flag_type = models.CharField(
         max_length=20,
         choices=FlagType.choices,
