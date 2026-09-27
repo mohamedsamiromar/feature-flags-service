@@ -6,8 +6,9 @@ services:
     env_file: .env
     volumes:
       - .:/app
+    # Override WEB_PORT in .env to run alongside another stack on 8000.
     ports:
-      - "8000:8000"
+      - "${WEB_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -38,11 +39,12 @@ services:
     # Fails fast at `docker compose up` if REDIS_PASSWORD is missing, rather
     # than silently starting an open Redis.
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"]
-    # Loopback only. This Redis has no password, and Django's cache pickles
-    # what it stores — anyone who can write a `flags:*` key gets code
-    # execution in the web process on the next evaluation.
+    # Loopback only: Django's cache pickles what it stores, so anyone who can
+    # write a `flags:*` key gets code execution in the web process. Host port
+    # 6380, not 6379, so this stack can run alongside another project's Redis;
+    # containers reach it as redis:6379 over the compose network regardless.
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - redis_data:/data
 

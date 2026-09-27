@@ -38,7 +38,7 @@ Running the suite outside Docker needs Postgres and Redis reachable:
 docker compose up -d db redis
 # Compose's Redis requires REDIS_PASSWORD (from .env)
 export $(grep '^REDIS_PASSWORD=' .env)
-DB_HOST=localhost DB_PORT=5434 REDIS_URL=redis://:$REDIS_PASSWORD@localhost:6379 pytest -q
+DB_HOST=localhost DB_PORT=5434 REDIS_URL=redis://:$REDIS_PASSWORD@localhost:6380 pytest -q
 ```
 
 ---
