@@ -6,9 +6,12 @@ services:
     env_file: .env
     volumes:
       - .:/app
-    # Override WEB_PORT in .env to run alongside another stack on 8000.
+    # Loopback only: this is `runserver`, usually with DEBUG=True, and on
+    # 0.0.0.0 anyone on the network could reach it (sending `Host: localhost`
+    # satisfies ALLOWED_HOSTS) and read debug pages. Override WEB_PORT in .env
+    # to run alongside another stack on 8000.
     ports:
-      - "${WEB_PORT:-8000}:8000"
+      - "127.0.0.1:${WEB_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
