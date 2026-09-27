@@ -134,6 +134,27 @@ class TestSecureModeOn:
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("url", [EVALUATE, BOOTSTRAP])
+class TestSecureModeFailsClosed:
+    def test_enabled_without_a_secret_rejects_every_client_request(
+        self, api_client, env, client_key, url
+    ):
+        """No API path produces this state (enabling generates a secret), but a
+        shell or data migration could. HMAC with an empty key is computable by
+        anyone, so accepting it would make secure mode a no-op while claiming
+        to be on. Uncertainty fails closed."""
+        Environment.objects.filter(pk=env.pk).update(secure_mode=True, secure_mode_secret="")
+
+        resp = _call(api_client, client_key, CEO, _hash("", CEO["user_id"]), url=url)
+
+        assert resp.status_code == 403
+
+    def test_server_key_is_still_exempt(self, api_client, env, server_key, url):
+        Environment.objects.filter(pk=env.pk).update(secure_mode=True, secure_mode_secret="")
+        assert _call(api_client, server_key, CEO, url=url).status_code == 200
+
+
+@pytest.mark.django_db
 class TestSecretManagement:
     def test_off_by_default_with_no_secret(self, auth_client, secure_url):
         resp = auth_client.get(secure_url)

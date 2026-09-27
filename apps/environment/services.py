@@ -140,6 +140,11 @@ class SecureModeService:
         environment = sdk_key.environment
         if not sdk_key.client_side_only or not environment.secure_mode:
             return
+        # On with no secret is unreachable through the API (enabling generates
+        # one), but not through a shell or data migration. HMAC with an empty
+        # key is computable by anyone, so fail closed rather than accept it.
+        if not environment.secure_mode_secret:
+            raise APIError(Error.SECURE_MODE_HASH_INVALID)
         expected = hmac.new(
             environment.secure_mode_secret.encode(),
             str(user_context.get("user_id", "")).encode(),
