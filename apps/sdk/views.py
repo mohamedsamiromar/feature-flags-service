@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.environment.services import SecureModeService
 from apps.evaluation.services import FlagEvaluationService
 from apps.evaluation.tasks import log_evaluation
 from apps.sdk.serializers import (
@@ -18,6 +19,7 @@ from apps.sdk_keys.authentication import SDKKeyAuthentication
 from apps.sdk_keys.permissions import HasSDKKey, HasServerSDKKey
 
 _eval_service = FlagEvaluationService()
+_secure_mode = SecureModeService()
 
 
 class SDKEvaluateFlagView(APIView):
@@ -46,6 +48,7 @@ class SDKEvaluateFlagView(APIView):
 
         flag_key = serializer.validated_data["flag_key"]
         user_context = serializer.validated_data["user_context"]
+        _secure_mode.assert_vouched(sdk_key, user_context, serializer.validated_data["hash"])
 
         evaluation = _eval_service.evaluate(
             flag_key=flag_key,
@@ -110,6 +113,7 @@ class SDKEvaluateAllFlagsView(APIView):
         serializer = SDKEvaluateAllRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user_context = serializer.validated_data["user_context"]
+        _secure_mode.assert_vouched(sdk_key, user_context, serializer.validated_data["hash"])
 
         evaluations = _eval_service.evaluate_all(
             project_id=sdk_key.environment.project_id,

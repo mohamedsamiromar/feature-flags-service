@@ -29,6 +29,11 @@ class EnvironmentQuery:
         )
 
     @staticmethod
+    def save(environment: Environment, update_fields=None) -> Environment:
+        environment.save(update_fields=update_fields)
+        return environment
+
+    @staticmethod
     def get_in_project(pk, project) -> Environment:
         try:
             return Environment.objects.get(pk=pk, project=project)

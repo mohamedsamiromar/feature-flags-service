@@ -4,6 +4,9 @@ from rest_framework import serializers
 class SDKEvaluateRequestSerializer(serializers.Serializer):
     flag_key = serializers.CharField()
     user_context = serializers.DictField(default=dict)
+    # Secure mode: HMAC-SHA256(environment secret, user_id), hex. Required of
+    # client keys when the environment is in secure mode; ignored otherwise.
+    hash = serializers.CharField(required=False, allow_blank=True, default="", max_length=128)
 
 
 class SDKEvaluateResponseSerializer(serializers.Serializer):
@@ -15,6 +18,8 @@ class SDKEvaluateResponseSerializer(serializers.Serializer):
 
 class SDKEvaluateAllRequestSerializer(serializers.Serializer):
     user_context = serializers.DictField(default=dict)
+    # See SDKEvaluateRequestSerializer.hash.
+    hash = serializers.CharField(required=False, allow_blank=True, default="", max_length=128)
 
 
 class SDKFlagResultSerializer(serializers.Serializer):

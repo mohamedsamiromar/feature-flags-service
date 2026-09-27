@@ -23,3 +23,16 @@ class EnvironmentFlagSerializer(serializers.ModelSerializer):
         model = EnvironmentFlag
         fields = ["id", "flag_key", "feature_flag", "is_enabled", "rollout_percentage", "updated_at"]
         read_only_fields = ["id", "flag_key", "feature_flag", "updated_at"]
+
+
+class SecureModeSerializer(serializers.Serializer):
+    """The only response that carries the secure-mode secret. Reading it is a
+    MEMBER+ action, like issuing an SDK key."""
+
+    enabled = serializers.BooleanField()
+    # Null until secure mode is first enabled (or the secret first rotated).
+    secret = serializers.CharField(allow_null=True)
+
+
+class SecureModeUpdateSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField()

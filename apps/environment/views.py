@@ -3,13 +3,23 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.environment.queries import EnvironmentQuery
-from apps.environment.serializers import EnvironmentFlagSerializer, EnvironmentSerializer
-from apps.environment.services import EnvironmentFlagService, EnvironmentService
+from apps.environment.serializers import (
+    EnvironmentFlagSerializer,
+    EnvironmentSerializer,
+    SecureModeSerializer,
+    SecureModeUpdateSerializer,
+)
+from apps.environment.services import (
+    EnvironmentFlagService,
+    EnvironmentService,
+    SecureModeService,
+)
 from apps.organizations.queries import ProjectQuery
 from apps.organizations.services import AccessService
 
 _env_service = EnvironmentService()
 _env_flag_service = EnvironmentFlagService()
+_secure_mode = SecureModeService()
 
 
 class EnvironmentViewSet(
@@ -27,6 +37,12 @@ class EnvironmentViewSet(
     DELETE /api/v1/projects/{project_key}/environments/{id}/       — delete (MEMBER+)
     GET    /api/v1/projects/{project_key}/environments/{id}/flags/ — per-env flag states
     PATCH  .../environments/{id}/flags/{flag_id}/                  — update flag state (MEMBER+)
+    GET    .../environments/{id}/secure-mode/                      — state + secret (MEMBER+)
+    PATCH  .../environments/{id}/secure-mode/                      — {"enabled": bool} (MEMBER+)
+    POST   .../environments/{id}/secure-mode/rotate/               — new secret (MEMBER+)
+
+    Every secure-mode call needs MEMBER+, reads included: the response carries
+    the secret, and a viewer holding it could vouch for any user id.
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -65,3 +81,21 @@ class EnvironmentViewSet(
             environment, flag_id, serializer.validated_data
         )
         return Response(EnvironmentFlagSerializer(updated).data)
+
+    @action(detail=True, methods=["get", "patch"], url_path="secure-mode")
+    def secure_mode(self, request, pk=None, **kwargs):
+        self._project(write=True)
+        environment = self.get_object()
+        if request.method == "PATCH":
+            serializer = SecureModeUpdateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            environment = _secure_mode.set_enabled(
+                environment, request.user, serializer.validated_data["enabled"]
+            )
+        return Response(SecureModeSerializer(_secure_mode.state(environment)).data)
+
+    @action(detail=True, methods=["post"], url_path="secure-mode/rotate")
+    def rotate_secure_mode_secret(self, request, pk=None, **kwargs):
+        self._project(write=True)
+        environment = _secure_mode.rotate(self.get_object(), request.user)
+        return Response(SecureModeSerializer(_secure_mode.state(environment)).data)

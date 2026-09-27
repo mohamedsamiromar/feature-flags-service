@@ -47,6 +47,9 @@ class AuditService:
     # that the digest lives in exactly one place.
     REDACTED_FIELDS = {
         "sdkkey": {"hashed_key"},
+        # The HMAC key for secure mode. Unlike an SDK key it is stored raw, so
+        # a copy here would be a working credential in a second table.
+        "environment": {"secure_mode_secret"},
     }
 
     @classmethod

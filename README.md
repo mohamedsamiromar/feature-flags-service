@@ -155,6 +155,7 @@ Every result carries a `result` value (boolean, string, number, or JSON object) 
 
 - **Opaque tokens** — server (`sdk_srv_`) and client (`sdk_cli_`) types, each scoped to one environment.
 - **Client keys see only client-side flags** — a `sdk_cli_` key ships to browsers, so anyone can read it. It reaches only flags marked `client_side_available`; any other flag is a `404` on `POST /sdk/evaluate/`, identical to a key that does not exist, is left out of the bootstrap, and has its impressions dropped. New flags start hidden; flags that existed before the field was added were migrated to visible. Server keys see everything.
+- **Secure mode** — per environment. When on, a client key must send `"hash": HMAC-SHA256(secret, user_id)` (hex) with `POST /sdk/evaluate/` and `POST /sdk/flags/evaluate/`, computed by your own backend; a missing or wrong hash is `403`. Without it, anyone holding the public client key could evaluate as any user id and learn who is targeted. The hash binds `user_id` only — other context attributes are still caller-supplied. Server keys are exempt. The secret is revealed only through `.../secure-mode/` (member+), stored raw because the server must recompute the HMAC, and redacted from the audit log.
 - **Hashed at rest** — the raw key is returned once on creation and never stored. Only a SHA-256 hash is persisted; the 16-char prefix is kept for display.
 - **The key is the principal** — SDK requests authenticate as the key itself, not as a user. The environment and project are derived from it, so callers never pass `env_id`.
 - **Rotation** — `POST /sdk-keys/{id}/rotate/` revokes the old key and issues a replacement in one request.
@@ -266,6 +267,9 @@ GET    /api/v1/projects/{pk}/environments/{id}/      Retrieve an environment
 DELETE /api/v1/projects/{pk}/environments/{id}/      Delete (cascades keys + states)
 GET    .../environments/{id}/flags/                  List per-environment flag states
 PATCH  .../environments/{id}/flags/{flag_id}/        Update flag state for this env
+GET    .../environments/{id}/secure-mode/            Secure-mode state + secret (member+)
+PATCH  .../environments/{id}/secure-mode/            {"enabled": true|false} (member+)
+POST   .../environments/{id}/secure-mode/rotate/     New secure-mode secret (member+)
 
 POST   /api/v1/sdk-keys/                             Create (returns full key once)
 GET    /api/v1/sdk-keys/                             List (prefix only)

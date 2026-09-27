@@ -2343,6 +2343,57 @@
               "body": "{\n  \"id\": 1,\n  \"flag_key\": \"dark-mode\",\n  \"feature_flag\": 1,\n  \"is_enabled\": true,\n  \"rollout_percentage\": 100,\n  \"updated_at\": \"2026-06-14T11:00:00Z\"\n}"
             }
           ]
+        },
+        {
+          "name": "Get Secure Mode",
+          "request": {
+            "method": "GET",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/:id/secure-mode/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ":id", "secure-mode", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            },
+            "description": "Member or above \u2014 reads included, because the response carries the secret.\n\nResponse: {\"enabled\": bool, \"secret\": \"<hex>\" | null}. The secret is null until secure mode is first enabled."
+          },
+          "response": []
+        },
+        {
+          "name": "Set Secure Mode",
+          "request": {
+            "method": "PATCH",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/:id/secure-mode/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ":id", "secure-mode", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            },
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Member or above. Turning it on generates the secret the first time; turning it off and on again keeps it.\n\nWhile on, a CLIENT key must send \"hash\": HMAC-SHA256(secret, user_id) as hex with POST /sdk/evaluate/ and POST /sdk/flags/evaluate/, or get 403. Compute it on your backend, never in the browser. Server keys are exempt.\n\nEnabling it breaks any browser SDK that is not yet sending the hash."
+          },
+          "response": []
+        },
+        {
+          "name": "Rotate Secure Mode Secret",
+          "request": {
+            "method": "POST",
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}"}]},
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_key}}/environments/:id/secure-mode/rotate/",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_key}}", "environments", ":id", "secure-mode", "rotate", ""],
+              "variable": [{"key": "id", "value": "1"}]
+            },
+            "description": "Member or above. Issues a new secret; every hash computed with the old one is rejected immediately."
+          },
+          "response": []
         }
       ]
     },
@@ -2613,7 +2664,7 @@
               "raw": "{\n  \"flag_key\": \"dark-mode\",\n  \"user_context\": {\n    \"user_id\": \"u123\",\n    \"country\": \"US\",\n    \"plan\": \"premium\"\n  }\n}",
               "options": {"raw": {"language": "json"}}
             },
-            "description": "Auth: X-SDK-Key header. Set {{sdk_key}} via Create SDK Key or Rotate SDK Key — the test script auto-saves it.\n\nResponse:\n{\n  \"flag_key\": \"dark-mode\",\n  \"result\": true,\n  \"result_type\": \"boolean\",\n  \"environment\": \"production\"\n}\n\nresult_type values: boolean | string | number | json\nFor multivariate flags, result is the variation value (e.g. \"red\", 5000, {\"color\": \"#f00\"})."
+            "description": "Secure mode: if the environment has secure mode on and this is a CLIENT key, add \"hash\": HMAC-SHA256(secret, user_id) as hex to the body, computed on your backend. Otherwise 403.\n\nAuth: X-SDK-Key header. Set {{sdk_key}} via Create SDK Key or Rotate SDK Key — the test script auto-saves it.\n\nResponse:\n{\n  \"flag_key\": \"dark-mode\",\n  \"result\": true,\n  \"result_type\": \"boolean\",\n  \"environment\": \"production\"\n}\n\nresult_type values: boolean | string | number | json\nFor multivariate flags, result is the variation value (e.g. \"red\", 5000, {\"color\": \"#f00\"})."
           },
           "response": [
             {
@@ -2808,7 +2859,7 @@
               "raw": "{\n  \"user_context\": {\n    \"user_id\": \"u123\",\n    \"country\": \"US\",\n    \"plan\": \"premium\"\n  }\n}",
               "options": {"raw": {"language": "json"}}
             },
-            "description": "Every flag in the SDK key's environment, resolved for one user context in a single call — what an SDK asks for at session start instead of one request per flag.\n\nAuth: X-SDK-Key header. Set {{sdk_key}} via Create SDK Key or Rotate SDK Key — the test script auto-saves it.\n\nFlags are keyed by flag key so a client looks one up by name. variation_id is null for a flag with no variations configured.\n\nSame engine as POST /sdk/evaluate/: kill switch, prerequisites, individual targets, rules, and rollout all apply identically.\n\nA CLIENT key (sdk_cli_) only receives flags marked client_side_available — client keys ship to browsers, so anything they can fetch is public. A server key receives every flag.\n\nArchived flags, and flags not configured in this environment, are omitted rather than reported as errors — an environment with no flags returns 200 with an empty object, not a 404.\n\nPOST rather than GET because the user context is an arbitrary nested object: query-string encoding is lossy and would put user attributes into access logs and proxy caches.\n\nThrottled on its own scope (evaluation_bulk, default 120/min) because one call does the work of N single evaluations.\n\nLogs no impressions. A bootstrap is a download, not a read — the app may go on to use three of fifty flags. Impressions arrive through the batching endpoint instead.\n\nCosts one round trip per user context, which suits one user per session (a browser SDK). A server-side SDK evaluating thousands of users in-process wants GET /sdk/flags/config/ instead — see SDK_CONFIG_SPEC.md."
+            "description": "Secure mode: same hash rule as POST /sdk/evaluate/.\n\nEvery flag in the SDK key's environment, resolved for one user context in a single call — what an SDK asks for at session start instead of one request per flag.\n\nAuth: X-SDK-Key header. Set {{sdk_key}} via Create SDK Key or Rotate SDK Key — the test script auto-saves it.\n\nFlags are keyed by flag key so a client looks one up by name. variation_id is null for a flag with no variations configured.\n\nSame engine as POST /sdk/evaluate/: kill switch, prerequisites, individual targets, rules, and rollout all apply identically.\n\nA CLIENT key (sdk_cli_) only receives flags marked client_side_available — client keys ship to browsers, so anything they can fetch is public. A server key receives every flag.\n\nArchived flags, and flags not configured in this environment, are omitted rather than reported as errors — an environment with no flags returns 200 with an empty object, not a 404.\n\nPOST rather than GET because the user context is an arbitrary nested object: query-string encoding is lossy and would put user attributes into access logs and proxy caches.\n\nThrottled on its own scope (evaluation_bulk, default 120/min) because one call does the work of N single evaluations.\n\nLogs no impressions. A bootstrap is a download, not a read — the app may go on to use three of fifty flags. Impressions arrive through the batching endpoint instead.\n\nCosts one round trip per user context, which suits one user per session (a browser SDK). A server-side SDK evaluating thousands of users in-process wants GET /sdk/flags/config/ instead — see SDK_CONFIG_SPEC.md."
           },
           "response": [
             {

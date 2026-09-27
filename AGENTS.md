@@ -140,7 +140,7 @@ AuditService.log_delete(user=user, entity=obj, old_value=old_snapshot)
 
 Only successful mutations are audited. A write rejected with a 400/409 changed nothing, and an entry for it makes the trail lie.
 
-**`AuditService.REDACTED_FIELDS` strips secrets from snapshots**, keyed by `Model._meta.model_name` — today `SDKKey.hashed_key`. A registry rather than a per-call argument, because an argument is something a future caller forgets, and forgetting writes the secret into a second table with different access rules. Add to it whenever a model gains a credential-shaped field.
+**`AuditService.REDACTED_FIELDS` strips secrets from snapshots**, keyed by `Model._meta.model_name` — today `SDKKey.hashed_key` and `Environment.secure_mode_secret`. A registry rather than a per-call argument, because an argument is something a future caller forgets, and forgetting writes the secret into a second table with different access rules. Add to it whenever a model gains a credential-shaped field.
 
 Coverage is complete: flags, variations, environments, segments, targets, prerequisites, rules, SDK keys, organizations, memberships, invitations, and projects. Signup provisions its org/project/environments through the query layer and audits them explicitly — keep it that way, an audit invariant with one exception is the one found during an incident.
 
@@ -238,6 +238,16 @@ Hidden flags are still **preloaded** in `evaluate_all` and resolved as prerequis
 
 `client_side_only` applies to the top-level flag only; the prerequisite recursion must keep its default. New flags default to hidden; migration `flags.0014` marked pre-existing flags visible so live browser SDKs kept working.
 
+### Secure mode
+
+`Environment.secure_mode` makes a client key prove its backend vouched for the user: `hash = HMAC-SHA256(secure_mode_secret, str(user_id))`, hex, on `POST /sdk/evaluate/` and `POST /sdk/flags/evaluate/`. `SecureModeService.assert_vouched` enforces it and is a no-op for server keys and non-secure environments; both SDK views call it before evaluating.
+
+- The secret is **stored raw** — the server recomputes the HMAC, so hash-only storage (invariant 1) cannot apply. That is why it is in `REDACTED_FIELDS`, never in `EnvironmentSerializer`, and readable only at MEMBER+.
+- Compare with `hmac.compare_digest` on **bytes**. On `str` it raises for non-ASCII input, and the hash is caller-supplied.
+- Re-enabling keeps the secret; only `rotate` replaces it. Toggling must not break every hash a backend already issued.
+- It binds `user_id` only, as LaunchDarkly's does. Other attributes remain caller-supplied — do not describe it as protecting attribute rules.
+- Impressions are not checked: they write logs and return no evaluation data.
+
 ### Archived flags
 
 Archived flags must not be mutable: call `FlagService._assert_active(flag)`, which raises `APIError(Error.FLAG_ARCHIVED)` (409). The SDK evaluate endpoint returns 404 for archived flags — never serve them.
@@ -284,6 +294,7 @@ def test_flag_create(auth_client, base):
 14. Only an owner may grant `owner`, or change or remove an owner's membership (`MembershipService._assert_may_touch_owner_rank`). ADMIN manages members, not the rank above it: an admin who can promote themselves lifts the last-owner guard, then demotes the real owner and deletes the org.
 15. Nobody joins an organization without consent. A `Membership` is created only by the invitee accepting an `Invitation` — there is no direct add. The inviter's authority is re-checked at accept time, so an invitation from someone who has since left or lost the rank it grants is void (409 `INVITATION_VOID`).
 16. A client SDK key reaches only flags marked `client_side_available`, and a hidden flag is indistinguishable from a missing one. New flags start hidden.
+17. In a secure-mode environment a client key cannot evaluate a user id without a valid HMAC from the customer's backend. The secret is never serialized with the environment and never written to the audit log.
 
 ---
 

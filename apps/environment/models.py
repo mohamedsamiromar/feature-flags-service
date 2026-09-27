@@ -33,6 +33,16 @@ class Environment(BaseModel):
     # concurrent mutations.
     config_version = models.PositiveBigIntegerField(default=1)
 
+    # Secure mode: client SDK keys (which ship to browsers) must present
+    # HMAC-SHA256(secure_mode_secret, user_id), computed by the customer's own
+    # backend, so a browser cannot evaluate flags as someone else's user id.
+    # See `SecureModeService`.
+    secure_mode = models.BooleanField(default=False)
+    # Stored raw, unlike SDK keys: the server has to recompute the HMAC, so a
+    # hash of the secret would be useless. Never serialized with the
+    # environment, and redacted from audit snapshots (AuditService).
+    secure_mode_secret = models.CharField(max_length=64, blank=True, default="")
+
     class Meta:
         unique_together = ("project", "name")
 
