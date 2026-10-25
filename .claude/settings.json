@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(docker compose run --rm web pytest *)",
+      "Bash(docker compose run --rm -T web pytest *)",
+      "Bash(docker compose run --rm web python manage.py makemigrations --check *)",
+      "Bash(docker compose run --rm -T web python manage.py makemigrations --check *)",
+      "Bash(docker compose run --rm web python manage.py generate_conformance_vectors --check)",
+      "Bash(docker compose run --rm -T web python manage.py generate_conformance_vectors --check)",
+      "Bash(uvx ruff@0.14.0 check *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(docker compose down *)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "Bash(git reset *)",
+      "Bash(git stash *)",
+      "Bash(git clean *)",
+      "Bash(git rebase *)",
+      "Bash(git branch -D *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Edit(./.env)",
+      "Edit(./.env.local)",
+      "Edit(./.env.*.local)",
+      "Bash(docker compose down -v *)",
+      "Bash(docker compose down * -v *)",
+      "Bash(docker compose down --volumes *)",
+      "Bash(docker compose down * --volumes *)",
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(gh)",
+      "Bash(gh *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/lint.sh",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/track-edits.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-check.sh",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}

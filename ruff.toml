@@ -1,0 +1,9 @@
+# Minimal lint set: import errors (E4), statement errors (E7), syntax and IO
+# errors (E9), pyflakes (F) and import sorting (I). Style rules come later, if
+# at all. The version is pinned in requirements-dev.txt and in
+# .claude/hooks/lint.sh; keep the two in step.
+target-version = "py39"
+extend-exclude = ["**/migrations/**"]
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I"]
