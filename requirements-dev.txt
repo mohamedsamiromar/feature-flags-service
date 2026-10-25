@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Keep in step with RUFF_VERSION in .claude/hooks/lint.sh.
+ruff==0.14.0

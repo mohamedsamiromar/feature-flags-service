@@ -26,6 +26,7 @@ docker compose run --rm web pytest apps/flags/ -q    # one app
 docker compose run --rm web python manage.py makemigrations --check --dry-run
 docker compose run --rm web python manage.py generate_conformance_vectors --check
 curl http://localhost:8000/healthz/                  # 200 = Postgres + Redis healthy
+uvx ruff@0.14.0 check <file.py>                      # lint; version pinned in requirements-dev.txt
 ```
 
 Outside Docker, **for humans only; agents use the Docker commands above**, because it
@@ -144,6 +145,5 @@ secrets. Key variables: `SECRET_KEY`, `DB_*`, `REDIS_PASSWORD`, `REDIS_URL`,
 | [testing.md](.claude/rules/testing.md) | factories, real DB, testing through the right layer |
 | [migrations.md](.claude/rules/migrations.md) | migration checks, data migrations |
 
-Decisions and their trade-offs: [docs/adr/README.md](docs/adr/README.md). For the roadmap,
-see README → Roadmap and PROJECT_GUIDE §8. The config-download contract is in
-[SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md).
+Decisions: [docs/adr/README.md](docs/adr/README.md). Roadmap: README → Roadmap and PROJECT_GUIDE §8.
+Config-download contract: [SDK_CONFIG_SPEC.md](SDK_CONFIG_SPEC.md).
