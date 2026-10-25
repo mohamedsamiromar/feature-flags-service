@@ -99,11 +99,12 @@ class TestRollbackService:
         flag = _make_flag(user)
         service.update_flag(flag.project.key, flag.key, user, rollout_percentage=50)
         EnvironmentFlagFactory(feature_flag=flag, environment=environment)
-        with patch("apps.evaluation.services.cache") as mock_cache:
-            service.rollback(flag.project.key, flag.key, user, version_no=1)
-        mock_cache.delete.assert_called_once_with(
-            f"flags:{flag.project_id}:{environment.id}:{flag.key}"
-        )
+        from apps.evaluation.services import FlagEvaluationService
+        before = FlagEvaluationService._current_generation(flag.project_id, environment.id)
+        service.rollback(flag.project.key, flag.key, user, version_no=1)
+        assert FlagEvaluationService._current_generation(
+            flag.project_id, environment.id
+        ) != before
 
     def test_dangling_variation_ref_is_dropped(self, user):
         """A snapshot pointing at a since-deleted variation restores to None."""

@@ -19,11 +19,11 @@ reader has loaded its row and before it calls `cache.set`, so the writer is
 injected there. Only that seam is patched; the ORM, Redis, and the HTTP
 stack are real.
 
-Each race test is `xfail(strict=True)`: it asserts the correct behaviour and
-fails today. When the race is fixed it XPASSes, strict mode turns that into a
-failure, and the marker has to be removed. Every one has a control twin that
-runs the same flow without the injected write and passes, so the harness
-itself is not what makes the race test fail.
+These failed before the fix (the per-environment cache generation, see
+`FlagEvaluationService._current_generation`) — written first, against the
+engine as it was, to confirm the race was real. Every one has a control twin
+that runs the same flow without the injected write, so the harness itself is
+not what decides the outcome.
 """
 
 from unittest.mock import patch
@@ -37,16 +37,6 @@ from conftest import EnvironmentFlagFactory, FeatureFlagFactory, VariationFactor
 
 EVALUATE = "/api/v1/sdk/evaluate/"
 CONFIG = "/api/v1/sdk/flags/config/"
-
-race = pytest.mark.xfail(
-    strict=True,
-    # Only a failed assertion counts as reproducing the race. A setup error
-    # must still fail the suite, not pass as an expected failure.
-    raises=AssertionError,
-    reason="cache-aside race: a reader that loaded the row before a write "
-           "re-caches it after the eviction",
-)
-
 
 @pytest.fixture
 def live_flag(project, environment):
@@ -123,7 +113,6 @@ class TestEvaluateAfterConcurrentKillSwitch:
         kill_switch()
         assert _evaluate(api_client, sdk_key, live_flag.key) is False
 
-    @race
     def test_kill_switch_is_honoured_by_the_next_request(
         self, api_client, sdk_key, live_flag, kill_switch
     ):
@@ -152,7 +141,6 @@ class TestConfigDownloadAfterConcurrentKillSwitch:
         assert after["ETag"] != before["ETag"]
         assert after.data["flags"][live_flag.key]["is_enabled"] is False
 
-    @race
     def test_new_version_carries_the_kill_switch(
         self, api_client, sdk_key, environment, live_flag, kill_switch
     ):
@@ -179,7 +167,6 @@ class TestConfigDownloadAfterConcurrentKillSwitch:
         assert _poll(api_client, sdk_key, etag=held["ETag"]).status_code == 304
         assert held.data == _poll(api_client, sdk_key).data
 
-    @race
     def test_sdk_is_not_left_on_stale_config_after_the_cache_expires(
         self, api_client, sdk_key, live_flag, kill_switch
     ):

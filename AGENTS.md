@@ -50,7 +50,7 @@ REST API (DRF)
   ├── Dashboard API  →  JWT Auth (Bearer token)
   └── SDK API        →  SDK Key Auth (X-SDK-Key header)
          │
-    Redis Cache  (DB 1)  — cache key: flags:{project_id}:{env_id}:{flag_key}  TTL: 300s
+    Redis Cache  (DB 1)  — cache key: flags:{project_id}:{env_id}:{generation}:{flag_key}  TTL: 300s
          │ miss
     PostgreSQL
          │
@@ -65,7 +65,7 @@ The **project** is the tenancy boundary, not the user. Roles are `viewer < membe
 
 ### Evaluation Algorithm (in order — each step short-circuits)
 
-1. Redis cache lookup — `flags:{project_id}:{env_id}:{flag_key}`
+1. Redis cache lookup — `flags:{project_id}:{env_id}:{generation}:{flag_key}`
 2. **Kill switch** — `EnvironmentFlag.is_enabled` false → `off_variation`. Nothing overrides this.
 3. **Prerequisites** — each gate's flag is evaluated recursively for the same user; any unmet gate → `off_variation`
 4. **Individual targets** — `FlagTarget` on `user_context["user_id"]` → that variation
@@ -148,11 +148,19 @@ Coverage is complete: flags, variations, environments, segments, targets, prereq
 
 Call `FlagService.invalidate_flag_caches(flag)` after any mutation that changes what a flag serves — flag config, variations, rules, targets, prerequisites. For a mutation affecting many flags at once (segment edits), use `FlagService.invalidate_many_flag_caches(flags)`, which resolves every flag's environments in **one** query instead of one per flag.
 
-Cache key format: `flags:{project_id}:{env_id}:{flag_key}` — written in exactly one place, `FlagEvaluationService._cache_key`. Never format it by hand; `EnvironmentFlagService` used to, and a second copy of that string is how a pre-tenancy version of this code evicted one key while evaluation read another.
+Cache key format: `flags:{project_id}:{env_id}:{generation}:{flag_key}` — written in exactly one place, `FlagEvaluationService._cache_key`. Never format it by hand (tests use `FlagEvaluationService.cache_key_for`); `EnvironmentFlagService` used to, and a second copy of that string is how a pre-tenancy version of this code evicted one key while evaluation read another.
+
+**Invalidation is a generation advance, not a delete.** Each environment has a cache generation in Redis (`flaggen:{project_id}:{env_id}`), and every payload key includes it. Deleting keys cannot keep a cache-aside cache coherent: a reader that loaded the row *before* a write can `set` it *after* the write's eviction, and that stale copy then gets cached into the config download under the new `config_version`, where the SDK's ETag pins it. `TestConfigDownloadAfterConcurrentKillSwitch` reproduces this. The ordering is the whole mechanism:
+
+- A reader takes the generation **before** touching Postgres and caches under that generation. Bulk paths read it once; prerequisite recursion receives it as `_generation`, so neither re-reads it per flag.
+- A writer advances it **after** its rows commit and **before** bumping `config_version`.
+- So never invalidate inside `transaction.atomic()`: advancing before COMMIT lets a reader cache the uncommitted-away rows under the new generation. `clear_foreign_variation_refs` collects what it touched and invalidates after its transaction for this reason.
+
+A change to any flag invalidates every flag cached in that environment. That is deliberate: writes are rare next to reads, and per-environment generations are what make a segment fan-out cost one advance per environment.
 
 The cached payload embeds rules, targets, prerequisites, and the resolved segments those rules reference. Any stale entry causes incorrect evaluations.
 
-**Eviction and `Environment.config_version` always move together.** `FlagService._invalidate_env_caches` does both, and every eviction path funnels through it. Do not evict without bumping: the version is the ETag for `GET /sdk/flags/config/`, so an SDK polling a version that never moves while the server serves something new is worse than no versioning at all. `_evict_env_caches` is the eviction-only half, and exists solely so a segment fan-out bumps once for the whole set rather than once per flag.
+**The generation and `Environment.config_version` always move together, in that order.** `FlagService._advance_and_bump` does both, and every invalidation path funnels through it, `EnvironmentFlagService` included. Never advance without bumping: the version is the ETag for `GET /sdk/flags/config/`, so an SDK polling a version that never moves while the server serves something new is worse than no versioning at all. Never bump first either. A poll between the two would build the new version's payload from the old generation's entries.
 
 ### SDK config download and conformance vectors
 
@@ -282,7 +290,7 @@ def test_flag_create(auth_client, base):
 2. Archiving a flag invalidates its cache entry in all environments.
 3. Rule, target, prerequisite, and segment mutations invalidate the affected flags' caches.
 4. Evaluation logging is always async (Celery) — the HTTP response never waits on the DB write.
-5. Cache keys are scoped to `(project_id, env_id, flag_key)` — environments are independent.
+5. Cache keys are scoped to `(project_id, env_id, generation, flag_key)` — environments are independent. Readers take the generation before Postgres; writers advance it after commit and before the `config_version` bump.
 6. `rollout_percentage` is validated at all three layers.
 7. Nothing overrides the kill switch. Prerequisites sit above individual targeting.
 8. Uncertainty fails closed. Never invert an unresolvable reference — that covers an unknown segment key, a missing prerequisite, and an operand `gt`/`lt` cannot coerce.

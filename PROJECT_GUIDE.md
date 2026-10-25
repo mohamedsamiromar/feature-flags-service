@@ -102,8 +102,10 @@ declared status. Views need no `try/except`.
 - **Membership scoping** — every queryset is filtered by project membership; role is
   asserted by `AccessService` before any mutation.
 - **Service layer** — writes go through a `*Service`.
-- **Cache key = `flags:{project_id}:{env_id}:{flag_key}`** — one format, three call
-  sites. Scoped per environment so a staging toggle can't evict production's copy.
+- **Cache key = `flags:{project_id}:{env_id}:{generation}:{flag_key}`** — one format,
+  one builder. Scoped per environment so a staging toggle can't invalidate production's
+  copy. Invalidation advances the environment's generation rather than deleting keys,
+  which closes the cache-aside race between a slow reader and a write.
 - **Async evaluation logging** — the evaluate hot path writes `EvaluationLog` via a
   Celery task, never synchronously. Celery serialises task arguments as JSON, so the
   cached flag config (which contains Python sets) must never be passed to a task.
@@ -386,7 +388,7 @@ every targeting layer over several users and asserts the two endpoints agree fla
 
 **The evaluation algorithm** (`FlagEvaluationService.evaluate`), in order:
 
-1. **Cache lookup** — `flags:{project_id}:{env_id}:{flag_key}`. On miss, load from
+1. **Cache lookup** — `flags:{project_id}:{env_id}:{generation}:{flag_key}`. On miss, load from
    PostgreSQL (joining env flag → flag → variations, rules, targets, prerequisites, and
    the segments those rules reference) and warm the cache (TTL 300s).
 2. **Kill switch** — env `is_enabled` false → `off_variation`. Nothing overrides this.

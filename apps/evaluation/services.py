@@ -1,4 +1,5 @@
 import hashlib
+import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -70,6 +71,7 @@ class FlagEvaluationService:
         client_side_only: bool = False,
         _chain: tuple = (),
         _preloaded: Optional[dict] = None,
+        _generation: Optional[int] = None,
     ) -> EvaluationResult:
         """Resolve `flag_key` for a user.
 
@@ -81,10 +83,16 @@ class FlagEvaluationService:
 
         `_chain` carries the prerequisite flags already being resolved further
         up the stack; `_preloaded` is the `{flag_key: flag_data}` map a bulk
-        evaluation has already resolved for this environment. Both are
-        internal and callers never pass them.
+        evaluation has already resolved for this environment; `_generation` is
+        the cache generation read once at the top of the call, so prerequisite
+        recursion does not re-read it per gate. All three are internal and
+        callers never pass them.
         """
-        flag_data = self._get_flag_data(flag_key, project_id, env_id, _preloaded)
+        if _preloaded is None and _generation is None:
+            _generation = self._current_generation(project_id, env_id)
+        flag_data = self._get_flag_data(
+            flag_key, project_id, env_id, _preloaded, _generation
+        )
         if client_side_only and not self._client_visible(flag_data):
             raise APIError(Error.INSTANCE_NOT_FOUND, extra=["Flag"])
 
@@ -95,7 +103,8 @@ class FlagEvaluationService:
         # user explicitly targeted on this flag still does not get it while a
         # prerequisite is unmet.
         if not self._prerequisites_met(
-            flag_data, project_id, user_context, env_id, _chain, flag_key, _preloaded
+            flag_data, project_id, user_context, env_id, _chain, flag_key,
+            _preloaded, _generation,
         ):
             return self._from_variation(flag_key, flag_data, flag_data["off_variation"])
 
@@ -187,7 +196,11 @@ class FlagEvaluationService:
         Keys that cannot be resolved are absent from the result rather than
         raising — see `evaluate_all`.
         """
-        by_cache_key = {self._cache_key(project_id, env_id, key): key for key in flag_keys}
+        # Read before Redis and Postgres, never after: see `_current_generation`.
+        generation = self._current_generation(project_id, env_id)
+        by_cache_key = {
+            self._cache_key(project_id, env_id, key, generation): key for key in flag_keys
+        }
         payloads = {
             by_cache_key[cache_key]: data
             for cache_key, data in cache.get_many(list(by_cache_key)).items()
@@ -229,7 +242,7 @@ class FlagEvaluationService:
 
         cache.set_many(
             {
-                self._cache_key(project_id, env_id, key): data
+                self._cache_key(project_id, env_id, key, generation): data
                 for key, data in warmed.items()
             },
             CACHE_TTL,
@@ -242,6 +255,7 @@ class FlagEvaluationService:
         project_id: int,
         env_id: int,
         preloaded: Optional[dict] = None,
+        generation: Optional[int] = None,
     ) -> dict:
         """One flag's evaluation payload: preloaded map → cache → database.
 
@@ -254,7 +268,9 @@ class FlagEvaluationService:
             if hit is not None:
                 return hit
 
-        cache_key = self._cache_key(project_id, env_id, flag_key)
+        if generation is None:
+            generation = self._current_generation(project_id, env_id)
+        cache_key = self._cache_key(project_id, env_id, flag_key, generation)
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -425,8 +441,69 @@ class FlagEvaluationService:
         return f"config:{project_id}:{env_id}:{config_version}"
 
     @staticmethod
-    def _cache_key(project_id: int, env_id: int, flag_key: str) -> str:
-        return f"flags:{project_id}:{env_id}:{flag_key}"
+    def _cache_key(project_id: int, env_id: int, flag_key: str, generation: int) -> str:
+        return f"flags:{project_id}:{env_id}:{generation}:{flag_key}"
+
+    @classmethod
+    def cache_key_for(cls, project_id: int, env_id: int, flag_key: str) -> str:
+        """The key a flag's payload is cached under right now. For tests and
+        debugging — the engine threads the generation it read explicitly."""
+        return cls._cache_key(
+            project_id, env_id, flag_key, cls._current_generation(project_id, env_id)
+        )
+
+    @staticmethod
+    def _generation_key(project_id: int, env_id: int) -> str:
+        return f"flaggen:{project_id}:{env_id}"
+
+    @classmethod
+    def _current_generation(cls, project_id: int, env_id: int) -> int:
+        """The environment's cache generation, part of every payload key.
+
+        This, not eviction, is what keeps the cache coherent. Cache-aside with
+        eviction has a race no amount of evicting closes: a reader that loaded
+        a row *before* a write can `set` it *after* the write's eviction, and
+        the stale copy is then served for the full TTL — and baked into the
+        config download under the new `config_version`, where the SDK's ETag
+        pins it until some unrelated change (TestConfigDownloadAfterConcurrent
+        KillSwitch).
+
+        A reader takes the generation BEFORE it touches Postgres, and writes
+        what it loaded under that generation. A writer advances it AFTER its
+        rows commit. So a reader that saw the old rows can only ever cache them
+        under the old generation, which nobody reads once the write is done.
+
+        Seeded from `time.time_ns()`, not 0 or `config_version`: if the key is
+        ever lost (Redis eviction or restart), the new seed must not collide
+        with a generation that still has payloads cached under it. Advances
+        are +1, so a new seed is unique by a margin of billions per second.
+        Stored without a TTL — it is one integer per environment.
+        """
+        key = cls._generation_key(project_id, env_id)
+        generation = cache.get(key)
+        if generation is not None:
+            return generation
+        seed = time.time_ns()
+        cache.add(key, seed, timeout=None)  # a concurrent seed wins; read it back
+        return cache.get(key) or seed
+
+    @classmethod
+    def advance_generation(cls, project_id: int, env_id: int) -> None:
+        """Invalidate every cached payload in one environment.
+
+        Must run after the write it announces has COMMITTED, and before
+        `config_version` is bumped — a config poll that sees the new version
+        must also see the new generation, or it rebuilds from stale entries.
+        `FlagService._invalidate_env_caches` is the one place that orders the
+        two; call that, not this.
+        """
+        key = cls._generation_key(project_id, env_id)
+        try:
+            cache.incr(key)
+        except ValueError:
+            # No generation yet (or it was lost): any fresh seed is already a
+            # namespace no stale reader wrote into.
+            cache.add(key, time.time_ns(), timeout=None)
 
     @staticmethod
     def _build_rules(flag) -> list:
@@ -535,10 +612,6 @@ class FlagEvaluationService:
             variation_id=variation.get("id"),
         )
 
-    @classmethod
-    def invalidate_cache(cls, project_id: int, flag_key: str, env_id: int) -> None:
-        cache.delete(cls._cache_key(project_id, env_id, flag_key))
-
     def _prerequisites_met(
         self,
         flag_data: dict,
@@ -548,6 +621,7 @@ class FlagEvaluationService:
         chain: tuple,
         flag_key: str,
         preloaded: Optional[dict] = None,
+        generation: Optional[int] = None,
     ) -> bool:
         """Whether every prerequisite of this flag is serving its required
         variation for this user.
@@ -574,6 +648,7 @@ class FlagEvaluationService:
                     env_id=env_id,
                     _chain=next_chain,
                     _preloaded=preloaded,
+                    _generation=generation,
                 )
             except APIError:
                 # Prerequisite archived, deleted, or not configured in this

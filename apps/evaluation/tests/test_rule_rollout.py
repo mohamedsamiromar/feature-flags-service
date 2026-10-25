@@ -188,7 +188,8 @@ class TestStaleCacheEntries:
         )
         _evaluate(flag, environment, "warm", plan="pro")  # prime
 
-        key = f"flags:{flag.project_id}:{environment.id}:{flag.key}"
+        from apps.evaluation.services import FlagEvaluationService
+        key = FlagEvaluationService.cache_key_for(flag.project_id, environment.id, flag.key)
         payload = cache.get(key)
         for rule in payload["rules"]:
             rule.pop("rollout_percentage", None)

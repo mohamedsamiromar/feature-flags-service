@@ -297,7 +297,7 @@ Follows the existing four-layer split; no new app.
 |---|---|
 | `apps/environment/models.py` | `Environment.config_version` + migration |
 | `apps/environment/queries.py` | `EnvironmentQuery.bump_config_versions(env_ids)` — one `F()` UPDATE for the whole set |
-| `apps/flags/services.py` | `_invalidate_env_caches` evicts *and* bumps; `_evict_env_caches` split out so a fan-out bumps once, not once per flag |
+| `apps/flags/services.py` | `_advance_and_bump` advances the cache generation, *then* bumps, once per environment however many flags a fan-out touches |
 | `apps/environment/services.py` | `EnvironmentFlagService._invalidate_cache` routed through the same pair instead of formatting the cache key itself |
 | `apps/evaluation/services.py` | `FlagEvaluationService.config_for(...)` — normalize segments, sets → arrays, targets → id map |
 | `apps/sdk_keys/permissions.py` | `HasServerSDKKey` |
@@ -318,9 +318,16 @@ It also means the download reuses the warm flag cache instead of competing with 
 **One bump site, not two.** The sketch said "the two `invalidate_*_caches`
 methods". There were three places that evicted a flag cache — the third was
 `EnvironmentFlagService`, formatting the cache key by hand. All of them now
-funnel through `_invalidate_env_caches`, which evicts and bumps together. Keeping
-them together is the whole contract: an SDK polling a version that never moves
-while the server serves something new is worse than no versioning at all.
+funnel through `FlagService._advance_and_bump`, which advances the cache
+generation and bumps the version together. Keeping them together is the whole
+contract: an SDK polling a version that never moves while the server serves
+something new is worse than no versioning at all.
+
+*Revised after shipping:* eviction alone let a reader that loaded rows before a
+write cache them after it, and the config payload for the new version was then
+built from that stale entry, with the ETag pinning it on the SDK. Invalidation
+now advances a per-environment cache generation (part of every payload key),
+strictly after commit and strictly before the bump. See AGENTS.md → Cache invalidation.
 
 **Caching.** The whole serialized payload is cached under
 `config:{project_id}:{env_id}:{config_version}`. Keying by version makes it

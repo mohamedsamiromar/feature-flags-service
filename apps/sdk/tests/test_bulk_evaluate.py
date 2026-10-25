@@ -196,6 +196,20 @@ class TestBulkEvaluateScope:
         assert set(flags) == {"mine"}
 
 
+def _single_key_reads(spy):
+    """`(generation_reads, payload_reads)` among a cache spy's `get` calls.
+
+    A bulk call reads the environment's cache generation once (the payload
+    keys depend on it) — that is a fixed cost, not a per-flag one. A
+    payload `get` is the per-flag round trip the preloaded map exists to avoid.
+    """
+    keys = [call.args[0] for call in spy.get.call_args_list]
+    return (
+        [key for key in keys if key.startswith("flaggen:")],
+        [key for key in keys if not key.startswith("flaggen:")],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Agreement with the per-flag endpoint
 # ---------------------------------------------------------------------------
@@ -324,15 +338,17 @@ class TestBulkAgreesWithSingleEvaluate:
                 flag_key=key, project_id=project_id,
                 user_context={"user_id": "alice"}, env_id=env_id,
             )
-            single_payloads[key] = cache.get(f"flags:{project_id}:{env_id}:{key}")
+            single_payloads[key] = cache.get(FlagEvaluationService.cache_key_for(project_id, env_id, key))
 
-        cache.delete_many([f"flags:{project_id}:{env_id}:{key}" for key in built])
+        cache.delete_many(
+            [FlagEvaluationService.cache_key_for(project_id, env_id, key) for key in built]
+        )
         service.evaluate_all(
             project_id=project_id, env_id=env_id, user_context={"user_id": "alice"}
         )
 
         for key in built:
-            assert cache.get(f"flags:{project_id}:{env_id}:{key}") == single_payloads[key], (
+            assert cache.get(FlagEvaluationService.cache_key_for(project_id, env_id, key)) == single_payloads[key], (
                 f"bulk warm wrote a different cache payload for {key!r}"
             )
 
@@ -400,7 +416,8 @@ class TestBulkEvaluateCost:
 
         project, environment = cls._environment_with(n, key_prefix)
         cache.delete_many([
-            f"flags:{project.id}:{environment.id}:{key_prefix}-{i}" for i in range(n)
+            FlagEvaluationService.cache_key_for(project.id, environment.id, f"{key_prefix}-{i}")
+            for i in range(n)
         ])
         with override_settings(DEBUG=True):
             reset_queries()
@@ -437,10 +454,10 @@ class TestBulkEvaluateCost:
         assert len(results) == 20
 
     def test_warm_cache_reads_redis_once_not_once_per_flag(self):
-        """One `get_many`, zero per-flag `get`s.
+        """One `get_many` and one generation read, zero per-flag `get`s.
 
         The per-flag `get` is what the preloaded map exists to avoid; without
-        it this is 20 Redis round trips instead of 1.
+        it this is 21 Redis round trips instead of 2.
         """
         from django.core.cache import cache as real_cache
         from unittest.mock import MagicMock
@@ -460,9 +477,11 @@ class TestBulkEvaluateCost:
                 project_id=project.id, env_id=environment.id, user_context=context
             )
 
+        generation_reads, payload_reads = _single_key_reads(spy)
         assert spy.get_many.call_count == 1
-        assert spy.get.call_count == 0, (
-            f"bulk evaluation fell back to per-flag cache reads ({spy.get.call_count} of them)"
+        assert len(generation_reads) == 1
+        assert payload_reads == [], (
+            f"bulk evaluation fell back to per-flag cache reads ({len(payload_reads)} of them)"
         )
 
     def test_prerequisite_chains_resolve_from_the_preloaded_map(self, user, project, environment):
@@ -503,7 +522,9 @@ class TestBulkEvaluateCost:
         assert {r.flag_key: r.result for r in results} == {
             f"chain-{i}": True for i in range(5)
         }
-        assert spy.get.call_count == 0, "prerequisite resolution bypassed the preloaded map"
+        generation_reads, payload_reads = _single_key_reads(spy)
+        assert len(generation_reads) == 1
+        assert payload_reads == [], "prerequisite resolution bypassed the preloaded map"
 
 
 # ---------------------------------------------------------------------------

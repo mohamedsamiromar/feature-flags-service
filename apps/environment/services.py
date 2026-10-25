@@ -54,22 +54,16 @@ class EnvironmentFlagService:
 
     @staticmethod
     def _invalidate_cache(env_flag: EnvironmentFlag) -> None:
-        """Evict this env's copy of the flag and advance the env's config version.
+        """Invalidate this env's cached payloads and advance its config version.
 
-        Goes through `FlagEvaluationService.invalidate_cache` rather than
-        formatting the cache key here. Two hand-written copies of that format is
-        how the pre-tenancy version of this code ended up evicting one key while
-        evaluation read another.
+        Goes through `FlagService`'s chokepoint rather than doing either half
+        here: the two must happen in a fixed order (see `_advance_and_bump`),
+        and a second copy of that ordering is one that can drift.
         """
-        from apps.evaluation.services import FlagEvaluationService
+        from apps.flags.services import FlagService
 
         env = env_flag.environment
-        FlagEvaluationService.invalidate_cache(
-            project_id=env.project_id,
-            flag_key=env_flag.feature_flag.key,
-            env_id=env.id,
-        )
-        EnvironmentQuery.bump_config_versions([env.id])
+        FlagService._invalidate_env_caches(env.project_id, [env.id])
 
 
 class SecureModeService:

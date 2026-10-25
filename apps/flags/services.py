@@ -104,10 +104,10 @@ class FlagService:
         # Capture the cache coordinates before the delete cascades the
         # EnvironmentFlag rows away — afterwards there is no way to learn which
         # environments held a cached copy.
-        project_id, flag_key = flag.project_id, flag.key
+        project_id = flag.project_id
         env_ids = FlagQuery.env_ids_for(flag)
         FlagQuery.delete(flag)
-        self._invalidate_env_caches(project_id, flag_key, env_ids)
+        self._invalidate_env_caches(project_id, env_ids)
 
         AuditService.log_delete(
             user=user, entity=flag, old_value=old_snapshot
@@ -399,6 +399,10 @@ class FlagService:
         from apps.rules.queries import RuleQuery
 
         findings = []
+        # Invalidated after the transaction, not inside it: a generation
+        # advanced before COMMIT lets a reader cache the pre-commit rows under
+        # the new generation — the exact race the generation exists to close.
+        touched = {}
         with transaction.atomic():
             for flag in FlagQuery.with_foreign_variations():
                 fields = [
@@ -415,7 +419,7 @@ class FlagService:
                     for field in fields:
                         setattr(flag, field, None)
                     FlagQuery.save(flag, update_fields=[*fields, "updated_at"])
-                    self.invalidate_flag_caches(flag)
+                    touched[flag.id] = flag
                     self._record_version(flag, None, FlagVersion.ChangeAction.UPDATE)
                     AuditService.log(
                         user=None,
@@ -433,7 +437,7 @@ class FlagService:
                     old_snapshot = AuditService.snapshot(rule)
                     rule.serve_variation = None
                     RuleQuery.save(rule, update_fields=["serve_variation", "updated_at"])
-                    self.invalidate_flag_caches(rule.flag)
+                    touched[rule.flag_id] = rule.flag
                     AuditService.log(
                         user=None,
                         action=AuditService.UPDATE,
@@ -441,6 +445,7 @@ class FlagService:
                         old_value=old_snapshot,
                         new_value=AuditService.snapshot(rule),
                     )
+        self.invalidate_many_flag_caches(touched.values())
         return findings
 
     @staticmethod
@@ -548,59 +553,62 @@ class FlagService:
 
     @classmethod
     def invalidate_many_flag_caches(cls, flags) -> None:
-        """Evict cached copies of several flags using one env lookup total.
+        """Invalidate several flags' cached copies using one env lookup total.
 
         Used by segment mutations, which fan out over every flag whose rules
-        reference the edited segment.
+        reference the edited segment. Generations are per environment, so the
+        fan-out costs one advance per environment however many flags it hits.
         """
         flags = list(flags)
         if not flags:
             return
-        from apps.environment.queries import EnvironmentQuery
-
         env_ids_by_flag = FlagQuery.env_ids_by_flag(flags)
-        for flag in flags:
-            cls._evict_env_caches(
-                flag.project_id, flag.key, env_ids_by_flag.get(flag.id, [])
-            )
-        # One bump for the whole fan-out. Evictions are per flag because each
-        # has its own cache key; the version is per environment, so bumping
-        # inside that loop would issue one UPDATE per flag for a single change.
-        EnvironmentQuery.bump_config_versions(
-            {env_id for ids in env_ids_by_flag.values() for env_id in ids}
-        )
+        project_by_flag = {flag.id: flag.project_id for flag in flags}
+        envs = {
+            (project_by_flag[flag_id], env_id)
+            for flag_id, env_ids in env_ids_by_flag.items()
+            for env_id in env_ids
+        }
+        cls._advance_and_bump(envs)
 
     @classmethod
     def invalidate_flag_caches(cls, flag: FeatureFlag) -> None:
-        """Evict every environment's cached copy of `flag`.
+        """Invalidate every environment's cached copy of `flag`.
 
         Public because rule mutations live outside this service but change the
         flag's cached targeting config.
         """
-        cls._invalidate_env_caches(flag.project_id, flag.key, FlagQuery.env_ids_for(flag))
+        cls._invalidate_env_caches(flag.project_id, FlagQuery.env_ids_for(flag))
 
     @classmethod
-    def _invalidate_env_caches(cls, project_id: int, flag_key: str, env_ids) -> None:
-        """Evict one flag's cached copies and advance those environments' versions.
-
-        The two always travel together: a cached payload going stale and an
-        environment's config changing are the same event seen from two sides.
-        Splitting them is how an SDK ends up polling a version that never moves
-        while the server serves something new.
-        """
-        from apps.environment.queries import EnvironmentQuery
-
-        env_ids = list(env_ids)
-        cls._evict_env_caches(project_id, flag_key, env_ids)
-        EnvironmentQuery.bump_config_versions(env_ids)
+    def _invalidate_env_caches(cls, project_id: int, env_ids) -> None:
+        """Invalidate these environments' cached payloads and advance their versions."""
+        cls._advance_and_bump({(project_id, env_id) for env_id in env_ids})
 
     @staticmethod
-    def _evict_env_caches(project_id: int, flag_key: str, env_ids) -> None:
-        """Cache eviction only — the caller owns the `config_version` bump."""
+    def _advance_and_bump(envs) -> None:
+        """THE invalidation chokepoint: `{(project_id, env_id), ...}`.
+
+        Order matters, and every invalidation path funnels through here so it
+        is decided once:
+
+        1. Callers have already saved — the write is committed before this
+           runs. (Never call it inside `transaction.atomic()`.)
+        2. Advance each environment's cache generation. Readers from here on
+           miss and load the committed rows.
+        3. Bump `config_version`. A config poll that sees the new version is
+           now guaranteed to read the new generation, so the payload cached
+           under that version cannot be built from stale entries.
+
+        Swap 2 and 3 and a poll between them caches pre-write content under
+        the post-write version, which the SDK's ETag then pins.
+        """
+        from apps.environment.queries import EnvironmentQuery
         from apps.evaluation.services import FlagEvaluationService
-        for env_id in env_ids:
-            FlagEvaluationService.invalidate_cache(
-                project_id=project_id,
-                flag_key=flag_key,
-                env_id=env_id,
-            )
+
+        envs = set(envs)
+        if not envs:
+            return
+        for project_id, env_id in envs:
+            FlagEvaluationService.advance_generation(project_id, env_id)
+        EnvironmentQuery.bump_config_versions({env_id for _, env_id in envs})

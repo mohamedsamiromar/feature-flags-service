@@ -73,7 +73,7 @@ A project is the tenancy boundary. Flag keys are unique per project, so two team
 
 Order matters, and each step short-circuits:
 
-1. **Cache lookup** — resolve `flags:{project_id}:{env_id}:{flag_key}` from Redis. On miss, query PostgreSQL and warm the cache.
+1. **Cache lookup** — resolve `flags:{project_id}:{env_id}:{generation}:{flag_key}` from Redis. On miss, query PostgreSQL and warm the cache.
 2. **Kill switch** — if the environment's `is_enabled` is false, serve `off_variation`. Nothing below can override this.
 3. **Prerequisites** — every gate must be satisfied: each prerequisite flag must resolve, for this same user, to the required variation. Any unmet gate serves `off_variation`.
 4. **Individual targets** — if this `user_id` is pinned to a variation on this flag, serve it.

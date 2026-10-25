@@ -35,11 +35,12 @@ class TestArchiveFlag:
     def test_invalidates_cache(self, flag, environment, user):
         from conftest import EnvironmentFlagFactory
         EnvironmentFlagFactory(feature_flag=flag, environment=environment)
-        with patch("apps.evaluation.services.cache") as mock_cache:
-            service.archive_flag(flag.project.key, flag.key, user)
-        mock_cache.delete.assert_called_once_with(
-            f"flags:{flag.project_id}:{environment.id}:{flag.key}"
-        )
+        from apps.evaluation.services import FlagEvaluationService
+        before = FlagEvaluationService._current_generation(flag.project_id, environment.id)
+        service.archive_flag(flag.project.key, flag.key, user)
+        assert FlagEvaluationService._current_generation(
+            flag.project_id, environment.id
+        ) != before
 
     def test_raises_not_found_for_non_member(self, flag, other_user):
         with pytest.raises(APIError):
@@ -70,11 +71,12 @@ class TestUnarchiveFlag:
         from conftest import EnvironmentFlagFactory
         flag = FeatureFlagFactory(project=project, is_archived=True)
         EnvironmentFlagFactory(feature_flag=flag, environment=environment)
-        with patch("apps.evaluation.services.cache") as mock_cache:
-            service.unarchive_flag(project.key, flag.key, user)
-        mock_cache.delete.assert_called_once_with(
-            f"flags:{flag.project_id}:{environment.id}:{flag.key}"
-        )
+        from apps.evaluation.services import FlagEvaluationService
+        before = FlagEvaluationService._current_generation(flag.project_id, environment.id)
+        service.unarchive_flag(project.key, flag.key, user)
+        assert FlagEvaluationService._current_generation(
+            flag.project_id, environment.id
+        ) != before
 
     def test_raises_not_found_for_non_member(self, other_user):
         flag = FeatureFlagFactory(is_archived=True)
