@@ -35,6 +35,10 @@ def test_flag_create(auth_client, base):
 - An autouse fixture clears the Redis cache around every test. Do not remove it. Redis
   outlives the test database, so a recycled primary key could otherwise read a stale entry
   from an earlier run.
+- That fixture clears through `conftest._try_clear`, which tolerates an unreachable Redis.
+  Keep it that way: because the fixture is autouse, a hard `cache.clear()` turns every
+  pure-logic test into a setup error whenever Redis is down. Tests that really exercise
+  the cache still fail on their own.
 - Tests that assert on rows written by a Celery task need the `eager_celery` fixture
   (currently defined in `apps/sdk/tests/test_impressions.py`). Without it, `.delay()` hands
   the batch to the real broker, and the worker writes it to the *development* database, so

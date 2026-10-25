@@ -6,6 +6,13 @@
 # Bash: blocks commands that name a .env file (except .env.example). The
 #   permission deny on Read/Edit does not cover a shell `grep` or a script.
 #
+# The Bash check is a tripwire, not a security boundary: it scans the whole
+# command text, so it can't tell a file argument from prose, and a determined
+# command could still reach the file. Decided: don't add heredoc parsing.
+# Commit messages, PR bodies and any other text that mentions a dotenv file
+# are written with the Write tool and passed by file (`git commit -F <file>`),
+# never inline in a heredoc.
+#
 # Exit 2 blocks the call, and stderr is the reason Claude sees. Anything this
 # hook cannot evaluate fails open: it allows the call and says why.
 

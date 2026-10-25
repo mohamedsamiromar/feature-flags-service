@@ -11,14 +11,10 @@
       "Bash(uvx ruff@0.14.0 check *)",
       "Bash(git status *)",
       "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(gh issue view *)",
-      "Bash(gh pr view *)"
+      "Bash(git log *)"
     ],
     "ask": [
       "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(gh pr create *)",
       "Bash(docker compose down *)",
       "Bash(git checkout -- *)",
       "Bash(git restore *)",
@@ -39,11 +35,10 @@
       "Bash(docker compose down * -v *)",
       "Bash(docker compose down --volumes *)",
       "Bash(docker compose down * --volumes *)",
-      "Bash(git push --force*)",
-      "Bash(git push * --force*)",
-      "Bash(git push -f *)",
-      "Bash(git push * -f *)",
-      "Bash(git push * -f)",
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(gh)",
+      "Bash(gh *)",
       "Bash(rm -rf *)",
       "Bash(rm -fr *)"
     ]

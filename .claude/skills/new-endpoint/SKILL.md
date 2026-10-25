@@ -36,6 +36,10 @@ the nearest existing example of the same shape.
 4. **View.** Request/response only. For an `@action`, set `detail` and `methods`, plus
    `url_path` when the name differs. Splat `**serializer.validated_data` next to the
    lookup argument.
+   - A route keyed by a user identifier needs an explicit `[^/]+`, as in
+     `url_path=r"targets/(?P<user_key>[^/]+)"`. DRF's default detail regex is `[^/.]+`,
+     which stops at the first dot and silently truncates email-shaped keys. Test it with
+     a key that contains a dot.
 5. **URL.** Register on the app's router, or rely on the `@action`. Confirm the full path
    resolves: `docker compose run --rm web python manage.py shell -c "from django.urls import resolve; print(resolve('/api/v1/...'))"`.
 6. **Tests through HTTP** (`apps/<app>/tests/`). Cover the happy path; a non-member (404,

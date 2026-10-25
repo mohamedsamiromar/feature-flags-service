@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Pre-merge gate for the current branch. Full test suite, ruff, both --check commands, /review-diff and /docs-sync, then a proposed commit message and PR body. Commits and opens the PR only after the user confirms.
+description: Pre-merge gate for the current branch. Full test suite, ruff, both --check commands, /review-diff and /docs-sync, then a proposed commit message and PR text. Commits locally only after the user confirms; the user pushes and opens the PR.
 argument-hint: "[issue #]"
 disable-model-invocation: true
 ---
@@ -30,9 +30,13 @@ Stop at the first step that fails, and report it. Don't fix anything inside this
      changes, migrations, any deploy ordering such as restarting the Celery worker), and
      `Closes #<n>` when an issue was given.
    - The exact commands you'll run: `git add <files>` (list them, and flag any file
-     that should be left out), `git commit -F <file>`, `git push -u origin <branch>`, and
-     `gh pr create --title "<title>" --body-file <file>`.
-7. **Wait for confirmation.** Commit, push and open the PR only after the user confirms
-   in this conversation. Write the message and body to files under `.claude/plans/`
-   (gitignored) with the Write tool, and pass them with `-F` / `--body-file`. Inline text
-   that names a dotenv file trips the guard in `protect.sh`.
+     that should be left out) and `git commit -F <file>`.
+7. **Wait for confirmation.** Commit only after the user confirms in this conversation.
+   Write the message to a file under `.claude/plans/` (gitignored) with the Write tool
+   and pass it with `-F`. Inline text that names a dotenv file trips the guard in
+   `protect.sh`.
+8. **Hand over.** Write the PR title (first line) and body to
+   `.claude/plans/pr-<branch>.md` (replace `/` in the branch name with `-`) for the user
+   to paste on GitHub, and give them the command to run themselves:
+   `git push -u origin <branch>`. **Never push or open the PR.** Claude has no GitHub
+   access; the user does both.

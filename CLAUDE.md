@@ -16,7 +16,7 @@ asks for it in this conversation or invokes an implementing skill (`/implement`,
 | `/engine-change` | Any change to evaluation behaviour: fixture, vectors, SDK_CONFIG_SPEC, query counts. |
 | `/review-diff` | The user's main review loop: `code-reviewer` + `tenancy-reviewer` + the checks. Never edits. |
 | `/docs-sync` | Checking README, PROJECT_GUIDE, AGENTS.md and the rules against the code. Fixes only after approval. |
-| `/ship` | User-invoked only. Full suite, ruff, both `--check`s, review, docs, then a proposed commit and PR. |
+| `/ship` | User-invoked only. Full suite, ruff, both `--check`s, review, docs, then a local commit and PR text for the user to push and open. |
 
-Never push, commit or open a PR without the user's confirmation in the current
-conversation.
+Commits only after the user confirms in this conversation. Claude never pushes or opens
+PRs; the user does both.

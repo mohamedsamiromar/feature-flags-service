@@ -3,15 +3,15 @@ name: fix-bug
 description: Fix a bug test-first. Write a failing test that reproduces it, show that it fails, then fix it. Only when the user delegates a fix.
 argument-hint: "<bug description or issue #>"
 disable-model-invocation: true
-allowed-tools: Bash(gh issue view *)
 ---
 
 # Fix a bug, test first
 
 Bug: $ARGUMENTS
 
-1. **Understand.** If given an issue number, run `gh issue view <n> --comments`. Find the
-   code path, and read the `.claude/rules/*.md` files whose `paths` cover it.
+1. **Understand.** If given an issue number, ask the user to paste the issue text and
+   comments, and wait for them. Don't fetch it: Claude has no GitHub access. Find the code
+   path, and read the `.claude/rules/*.md` files whose `paths` cover it.
 2. **Reproduce with a test.** Write a test that fails *because of the bug*. Put it in the
    app's `tests/` directory, and test through the layer where the bug is visible: an HTTP
    test (`auth_client` / `api_client`) if the user sees it through the API. Use the
