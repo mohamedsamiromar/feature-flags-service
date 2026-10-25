@@ -107,7 +107,7 @@ This is a **public wire format**, not a dump of `flag_data`. Four changes:
 2. **Sets become arrays.** `SegmentQuery.evaluation_payload` builds Python `set`s
    for `included`/`excluded`. `json.dumps` cannot encode a set. Conversion happens
    at the serializer boundary — the same class of hazard as the Celery boundary
-   (see AGENTS.md → Celery boundary).
+   (Celery task arguments are JSON-serialized too).
 3. **`targets` maps `user_key → variation_id`**, not to a full variation dict. The
    variations are already in the payload; repeating them per target is waste.
 4. **`format_version` is explicit and independent of `config_version`.** The former
@@ -327,7 +327,7 @@ something new is worse than no versioning at all.
 write cache them after it, and the config payload for the new version was then
 built from that stale entry, with the ETag pinning it on the SDK. Invalidation
 now advances a per-environment cache generation (part of every payload key),
-strictly after commit and strictly before the bump. See AGENTS.md → Cache invalidation.
+strictly after commit and strictly before the bump. See [docs/adr/0013](docs/adr/0013-invalidation-by-generation.md).
 
 **Caching.** The whole serialized payload is cached under
 `config:{project_id}:{env_id}:{config_version}`. Keying by version makes it
