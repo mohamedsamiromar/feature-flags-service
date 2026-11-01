@@ -11,7 +11,7 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from apps.sdk_keys.authentication import SDKKeyAuthentication
 from apps.sdk_keys.models import SDKKey
-from conftest import SDKKeyFactory, EnvironmentFactory, UserFactory
+from conftest import SDKKeyFactory
 
 auth = SDKKeyAuthentication()
 

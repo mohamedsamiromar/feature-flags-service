@@ -9,13 +9,11 @@ import pytest
 
 from apps.audit.models import AuditLog
 from apps.environment.models import EnvironmentFlag
-
 from conftest import (
     EnvironmentFactory,
     EnvironmentFlagFactory,
     FeatureFlagFactory,
 )
-
 
 
 @pytest.mark.django_db

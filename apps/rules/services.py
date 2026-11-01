@@ -1,7 +1,7 @@
 from apps.audit.services import AuditService
+from apps.core.errors import APIError, Error
 from apps.flags.services import FlagService
 from apps.organizations.services import AccessService
-from apps.core.errors import APIError, Error
 from apps.rules.models import Operator, Rule, to_number
 from apps.rules.queries import RuleQuery
 from apps.segments.queries import SegmentQuery

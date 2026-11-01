@@ -7,13 +7,12 @@ Services resolve the flag through project membership, so a non-member sees a
 rather than an instance.
 """
 
+
 import pytest
-from unittest.mock import patch
 
 from apps.audit.models import AuditLog
 from apps.core.errors import APIError
 from apps.flags.services import FlagService
-
 from conftest import FeatureFlagFactory
 
 service = FlagService()

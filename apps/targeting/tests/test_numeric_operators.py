@@ -17,14 +17,15 @@ Two layers, and both are load-bearing:
   matches nobody for the rest of its life.
 """
 
-import pytest
 from unittest.mock import patch
 
-from conftest import EnvironmentFlagFactory, VariationFactory
+import pytest
+
 from apps.rules.models import Operator, Rule
 from apps.segments.evaluator import SegmentEvaluator
 from apps.segments.models import Segment
 from apps.targeting.services import RuleEvaluator
+from conftest import EnvironmentFlagFactory, VariationFactory
 
 SDK_ENDPOINT = "/api/v1/sdk/evaluate/"
 

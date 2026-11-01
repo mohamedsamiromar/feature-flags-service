@@ -13,7 +13,13 @@ from django.utils.text import slugify
 from apps.accounts.queries import UserQuery
 from apps.audit.services import AuditService
 from apps.core.errors import APIError, Error
-from apps.organizations.models import Invitation, Membership, Organization, Project, Role
+from apps.organizations.models import (
+    Invitation,
+    Membership,
+    Organization,
+    Project,
+    Role,
+)
 from apps.organizations.queries import (
     InvitationQuery,
     MembershipQuery,

@@ -5,14 +5,13 @@ Every test hits the real HTTP stack (DRF router → view → service → DB).
 Celery tasks are mocked so no broker is required.
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from apps.audit.models import AuditLog
 from apps.flags.models import FeatureFlag
-
-from conftest import FeatureFlagFactory, UserFactory
-
+from conftest import FeatureFlagFactory
 
 
 @pytest.mark.django_db
@@ -145,8 +144,9 @@ class TestPatchArchivedFlag:
 class TestArchivedFlagEvaluation:
     def test_archived_flag_returns_404_on_evaluate(self, user, environment):
         """Archived flags must not be evaluated — evaluating them returns 404."""
-        from conftest import EnvironmentFlagFactory, FeatureFlagFactory, SDKKeyFactory
         from rest_framework.test import APIClient
+
+        from conftest import EnvironmentFlagFactory, FeatureFlagFactory, SDKKeyFactory
 
         flag = FeatureFlagFactory(owner=user, is_archived=True)
         EnvironmentFlagFactory(feature_flag=flag, environment=environment)

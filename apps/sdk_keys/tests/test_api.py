@@ -8,7 +8,7 @@ import pytest
 
 from apps.sdk_keys.key_generator import KeyGenerator
 from apps.sdk_keys.models import SDKKey
-from conftest import EnvironmentFactory, SDKKeyFactory, UserFactory
+from conftest import EnvironmentFactory, SDKKeyFactory
 
 BASE = "/api/v1/sdk-keys"
 

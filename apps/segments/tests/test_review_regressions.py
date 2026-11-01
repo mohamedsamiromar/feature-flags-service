@@ -7,7 +7,6 @@ that segment rules were unusable through the serializer.
 """
 
 import pytest
-from conftest import EnvironmentFlagFactory, VariationFactory
 
 from apps.core.errors import APIError
 from apps.evaluation.services import FlagEvaluationService
@@ -15,6 +14,7 @@ from apps.rules.models import Operator, Rule
 from apps.segments.evaluator import SegmentEvaluator
 from apps.segments.models import SegmentRule
 from apps.segments.services import SegmentService
+from conftest import EnvironmentFlagFactory, VariationFactory
 
 _service = SegmentService()
 

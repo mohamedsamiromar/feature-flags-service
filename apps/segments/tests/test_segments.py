@@ -8,7 +8,6 @@ rules reference it.
 """
 
 import pytest
-from conftest import FeatureFlagFactory, UserFactory, personal_project_for
 
 from apps.audit.models import AuditLog
 from apps.audit.services import AuditService
@@ -18,6 +17,7 @@ from apps.segments.evaluator import SegmentEvaluator
 from apps.segments.models import Segment, SegmentRule, SegmentTarget
 from apps.segments.queries import SegmentQuery
 from apps.segments.services import SegmentService
+from conftest import FeatureFlagFactory, UserFactory, personal_project_for
 
 _service = SegmentService()
 

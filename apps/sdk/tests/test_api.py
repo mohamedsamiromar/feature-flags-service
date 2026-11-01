@@ -5,14 +5,14 @@ POST /api/v1/sdk/evaluate/ requires X-SDK-Key header.
 JWT tokens must NOT work here (SDK-key-only endpoint).
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from conftest import (
     EnvironmentFlagFactory,
     FeatureFlagFactory,
     SDKKeyFactory,
-    UserFactory,
 )
 
 ENDPOINT = "/api/v1/sdk/evaluate/"
@@ -276,9 +276,9 @@ class TestEvaluationTaskArgsStayJsonSafe:
 
     @pytest.fixture
     def segment_targeted_flag(self, user, project, flag, environment, sdk_key):
-        from conftest import VariationFactory
         from apps.rules.models import Operator, Rule
         from apps.segments.services import SegmentService
+        from conftest import VariationFactory
 
         segments = SegmentService()
         segment = segments.create_segment(

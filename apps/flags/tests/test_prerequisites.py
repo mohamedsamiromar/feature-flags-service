@@ -8,12 +8,17 @@ its gate must stay off rather than guess its way open.
 """
 
 import pytest
-from conftest import EnvironmentFlagFactory, FeatureFlagFactory, UserFactory, VariationFactory
 
 from apps.core.errors import APIError
 from apps.evaluation.services import FlagEvaluationService
 from apps.flags.models import FlagPrerequisite
 from apps.flags.services import FlagService
+from conftest import (
+    EnvironmentFlagFactory,
+    FeatureFlagFactory,
+    UserFactory,
+    VariationFactory,
+)
 
 _service = FlagService()
 

@@ -6,14 +6,13 @@ rollback. Fixture-built flags (`FeatureFlagFactory`) bypass the service, so
 tests that need history create their flags through `FlagService`.
 """
 
+
 import pytest
-from unittest.mock import patch
 
 from apps.audit.models import AuditLog
 from apps.core.errors import APIError
-from apps.flags.models import FeatureFlag, FlagVersion, Variation
+from apps.flags.models import FeatureFlag, FlagVersion
 from apps.flags.services import FlagService
-
 from conftest import FeatureFlagFactory, VariationFactory, personal_project_for
 
 service = FlagService()
