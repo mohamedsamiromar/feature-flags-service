@@ -23,7 +23,8 @@
       "Bash(gh pr diff *)",
       "Bash(gh label list)",
       "Bash(gh label list *)",
-      "Bash(gh auth status)"
+      "Bash(gh auth status)",
+      "Bash(git branch --show-current)"
     ],
     "ask": [
       "Bash(git commit *)",
@@ -72,6 +73,7 @@
       "Bash(git push --all*)",
       "Bash(git push --prune*)",
       "Bash(git push --delete*)",
+      "Bash(git push -d*)",
       "Bash(gh pr merge)",
       "Bash(gh pr merge *)",
       "Bash(gh pr close)",
@@ -100,6 +102,11 @@
       "Bash(gh label delete *)",
       "Bash(gh issue close *)",
       "Bash(gh issue delete *)",
+      "Bash(gh issue transfer *)",
+      "Bash(gh ssh-key)",
+      "Bash(gh ssh-key *)",
+      "Bash(gh gpg-key)",
+      "Bash(gh gpg-key *)",
       "Bash(gh repo)",
       "Bash(gh repo *)",
       "Bash(gh api *)",

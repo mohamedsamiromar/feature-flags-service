@@ -33,7 +33,9 @@ only on this machine.
    `gh label create <name> --description "<one line>"`. Never create a label without
    asking, and never drop a label silently.
 4. **Show it.** Show the user the exact title, labels and body, then wait for
-   confirmation. Write the body to `.claude/plans/issue-<slug>.md` with the Write tool.
+   confirmation. Then write the body to `.claude/plans/issue-<slug>.md` with the Write
+   tool. The file holds the final text the user confirmed, including any edits they asked
+   for.
    The body goes through a file because text that names a dotenv file trips the guard in
    `protect.sh`.
 5. **Create it.** After the user confirms, run
