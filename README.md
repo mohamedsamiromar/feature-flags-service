@@ -1,6 +1,5 @@
 # Feature Flag Engine
 
-[![CI](https://github.com/mohamedsamiromar/feature-flags-service/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamedsamiromar/feature-flags-service/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mohamedsamiromar/feature-flags-service)](LICENSE)
 
 A self-hosted feature flag backend built with Django and Django REST Framework. Redis-cached flag evaluation, team multi-tenancy with role-based access, individual user targeting, reusable segments, prerequisite flags, environment-scoped state, SDK key authentication, multivariate flags, and an audit trail.
@@ -543,7 +542,7 @@ Compose publishes host ports **8000** (web), **5434** (PostgreSQL) and **6379** 
 docker compose run --rm web pytest
 ```
 
-359 tests. The same command runs in CI on every push and PR to `main`.
+647 tests.
 
 ---
 
