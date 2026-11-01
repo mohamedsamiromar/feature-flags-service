@@ -9,8 +9,9 @@ call. Two things have to hold, and the tests are split accordingly:
 """
 
 import json
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from conftest import (
     EnvironmentFactory,
@@ -369,15 +370,15 @@ class TestBulkEvaluateCost:
     def _environment_with(n, key_prefix):
         """A fresh project + environment holding `n` flags, each with a rule
         referencing a shared segment (so segment resolution is in play)."""
-        from conftest import (
-            EnvironmentFactory,
-            ProjectFactory,
-            UserFactory,
-            MembershipFactory,
-        )
+        from apps.organizations.models import Role
         from apps.rules.models import Operator, Rule
         from apps.segments.services import SegmentService
-        from apps.organizations.models import Role
+        from conftest import (
+            EnvironmentFactory,
+            MembershipFactory,
+            ProjectFactory,
+            UserFactory,
+        )
 
         owner = UserFactory()
         project = ProjectFactory()
@@ -459,8 +460,9 @@ class TestBulkEvaluateCost:
         The per-flag `get` is what the preloaded map exists to avoid; without
         it this is 21 Redis round trips instead of 2.
         """
-        from django.core.cache import cache as real_cache
         from unittest.mock import MagicMock
+
+        from django.core.cache import cache as real_cache
 
         from apps.evaluation.services import FlagEvaluationService
 
@@ -487,11 +489,12 @@ class TestBulkEvaluateCost:
     def test_prerequisite_chains_resolve_from_the_preloaded_map(self, user, project, environment):
         """A gate flag is already in the batch, so resolving it must not cost
         another Redis read on top of the one `get_many`."""
-        from django.core.cache import cache as real_cache
         from unittest.mock import MagicMock
 
-        from apps.flags.models import FlagPrerequisite
+        from django.core.cache import cache as real_cache
+
         from apps.evaluation.services import FlagEvaluationService
+        from apps.flags.models import FlagPrerequisite
 
         previous = None
         for i in range(5):

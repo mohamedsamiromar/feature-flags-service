@@ -32,7 +32,6 @@ import pytest
 
 from apps.evaluation.services import FlagEvaluationService
 from apps.flags.services import FlagService
-
 from conftest import EnvironmentFlagFactory, FeatureFlagFactory, VariationFactory
 
 EVALUATE = "/api/v1/sdk/evaluate/"

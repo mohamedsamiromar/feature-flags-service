@@ -1,6 +1,10 @@
 from rest_framework.routers import DefaultRouter
 
-from apps.organizations.views import InvitationViewSet, OrganizationViewSet, ProjectViewSet
+from apps.organizations.views import (
+    InvitationViewSet,
+    OrganizationViewSet,
+    ProjectViewSet,
+)
 
 app_name = "organizations"
 

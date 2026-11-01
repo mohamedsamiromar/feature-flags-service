@@ -7,15 +7,14 @@ endpoint deliberately logs nothing, so every flag served either way would be
 absent from `EvaluationLog` — the table the dashboard reads.
 """
 
-import pytest
 from unittest.mock import patch
 
+import pytest
 from rest_framework import status
 
 from apps.evaluation.models import EvaluationLog
 from apps.sdk.serializers import SDKImpressionBatchSerializer
 from apps.sdk_keys.models import SDKKey
-
 from conftest import (
     EnvironmentFactory,
     EnvironmentFlagFactory,

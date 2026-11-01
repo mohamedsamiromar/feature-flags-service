@@ -8,10 +8,10 @@ than falling through to a later rule.
 """
 
 import pytest
-from conftest import EnvironmentFlagFactory, VariationFactory
 
 from apps.evaluation.services import FlagEvaluationService
 from apps.rules.models import Operator, Rule
+from conftest import EnvironmentFlagFactory, VariationFactory
 
 
 @pytest.fixture

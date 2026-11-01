@@ -21,7 +21,6 @@ from apps.evaluation.services import CONFIG_FORMAT_VERSION
 from apps.rules.models import Operator
 from apps.sdk_keys.models import SDKKey
 from apps.segments.models import Segment, SegmentRule, SegmentTarget
-
 from conftest import (
     EnvironmentFlagFactory,
     FeatureFlagFactory,

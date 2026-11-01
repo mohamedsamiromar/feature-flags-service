@@ -8,19 +8,19 @@ a denylist.
 """
 
 import pytest
-from conftest import (
-    EnvironmentFlagFactory,
-    FeatureFlagFactory,
-    UserFactory,
-    VariationFactory,
-    personal_project_for,
-)
+
 from apps.audit.models import AuditLog
 from apps.audit.services import AuditService
 from apps.core.errors import APIError
 from apps.evaluation.services import FlagEvaluationService
 from apps.flags.models import FlagTarget
 from apps.flags.services import FlagService
+from conftest import (
+    EnvironmentFlagFactory,
+    FeatureFlagFactory,
+    UserFactory,
+    VariationFactory,
+)
 
 _service = FlagService()
 

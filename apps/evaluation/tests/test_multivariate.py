@@ -5,15 +5,19 @@ Verifies that EvaluationResult carries the correct value + result_type
 for both legacy boolean flags and new multivariate flags.
 """
 
-import pytest
-from conftest import (
-    EnvironmentFactory, EnvironmentFlagFactory,
-    FeatureFlagFactory, SDKKeyFactory, VariationFactory,
-)
-from apps.flags.models import FeatureFlag, Variation
-from apps.flags.services import FlagService
-from apps.evaluation.services import FlagEvaluationService
 from unittest.mock import patch
+
+import pytest
+
+from apps.evaluation.services import FlagEvaluationService
+from apps.flags.models import FeatureFlag
+from apps.flags.services import FlagService
+from conftest import (
+    EnvironmentFlagFactory,
+    FeatureFlagFactory,
+    SDKKeyFactory,
+    VariationFactory,
+)
 
 BASE = "/api/v1/sdk/evaluate/"
 _eval_service = FlagEvaluationService()

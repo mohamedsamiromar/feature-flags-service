@@ -1,5 +1,5 @@
-from apps.rules.models import Operator, to_number
 from apps.core.errors import APIError, Error
+from apps.rules.models import Operator, to_number
 
 
 class RuleEvaluator:

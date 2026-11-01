@@ -1,8 +1,10 @@
+from enum import Enum
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
+
 from apps.core.models import BaseModel
 from apps.flags.models import FeatureFlag
-from enum import Enum
 
 
 class Environment(BaseModel):

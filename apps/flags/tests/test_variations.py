@@ -6,11 +6,12 @@ ownership isolation, and flag_type field.
 """
 
 import pytest
-from conftest import FeatureFlagFactory, VariationFactory, personal_project_for
-from apps.flags.models import FeatureFlag, Variation
-from apps.flags.services import FlagService
+
 from apps.audit.models import AuditLog
 from apps.audit.services import AuditService
+from apps.flags.models import FeatureFlag, Variation
+from apps.flags.services import FlagService
+from conftest import FeatureFlagFactory, VariationFactory, personal_project_for
 
 _service = FlagService()
 
@@ -67,8 +68,8 @@ class TestVariationService:
         assert not Variation.objects.filter(pk=pk).exists()
 
     def test_create_variation_raises_for_non_owner(self, flag):
-        from conftest import UserFactory
         from apps.core.errors import APIError
+        from conftest import UserFactory
         other = UserFactory()
         # Owner-scoped lookup: another user's flag is invisible (404), not a 403.
         with pytest.raises(APIError):

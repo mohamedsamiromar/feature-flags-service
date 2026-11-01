@@ -5,13 +5,13 @@ after the cache TTL.
 """
 
 import pytest
-from conftest import EnvironmentFlagFactory, VariationFactory
 
 from apps.core.errors import APIError
 from apps.evaluation.services import FlagEvaluationService
 from apps.rules.models import Operator, Rule
 from apps.rules.services import RuleService
 from apps.segments.services import SegmentService
+from conftest import EnvironmentFlagFactory, VariationFactory
 
 _service = SegmentService()
 _rules = RuleService()
@@ -248,9 +248,10 @@ class TestFanOutDoesNotScaleWithFlagCount:
 
     @staticmethod
     def _queries_for(user, project, n, key):
-        from conftest import FeatureFlagFactory
         from django.db import connection, reset_queries
         from django.test.utils import override_settings
+
+        from conftest import FeatureFlagFactory
 
         _service.create_segment(project_key=project.key, user=user, key=key, name="B")
         for i in range(n):

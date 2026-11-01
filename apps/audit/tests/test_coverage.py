@@ -16,7 +16,6 @@ from apps.audit.services import AuditService
 from apps.organizations.models import Membership, Organization, Project, Role
 from apps.rules.models import Operator, Rule
 from apps.sdk_keys.models import SDKKey
-
 from conftest import UserFactory, join_via_invitation
 
 

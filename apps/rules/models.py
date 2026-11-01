@@ -1,5 +1,6 @@
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
 from apps.core.models import BaseModel
 from apps.flags.models import FeatureFlag
 

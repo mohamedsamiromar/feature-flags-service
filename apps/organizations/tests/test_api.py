@@ -7,7 +7,7 @@ creation, and the "invisible to non-members" (404) contract.
 
 import pytest
 
-from apps.organizations.models import Membership, Project, Role
+from apps.organizations.models import Membership, Role
 from conftest import join_via_invitation
 
 ORG_BASE = "/api/v1/organizations"

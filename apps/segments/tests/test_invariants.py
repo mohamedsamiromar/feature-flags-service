@@ -12,11 +12,11 @@ stops at the first dot, so it silently truncates every email-shaped user key.
 import pytest
 from django.core.cache import cache
 
-from conftest import EnvironmentFlagFactory, VariationFactory
 from apps.evaluation.services import FlagEvaluationService
 from apps.rules.models import Operator, Rule
 from apps.segments.queries import SegmentQuery
 from apps.segments.services import SegmentService
+from conftest import EnvironmentFlagFactory, VariationFactory
 
 _service = SegmentService()
 

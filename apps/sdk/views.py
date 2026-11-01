@@ -8,12 +8,12 @@ from apps.evaluation.services import FlagEvaluationService
 from apps.evaluation.tasks import log_evaluation
 from apps.sdk.serializers import (
     SDKConfigResponseSerializer,
-    SDKImpressionBatchSerializer,
-    SDKImpressionResponseSerializer,
     SDKEvaluateAllRequestSerializer,
     SDKEvaluateAllResponseSerializer,
     SDKEvaluateRequestSerializer,
     SDKEvaluateResponseSerializer,
+    SDKImpressionBatchSerializer,
+    SDKImpressionResponseSerializer,
 )
 from apps.sdk_keys.authentication import SDKKeyAuthentication
 from apps.sdk_keys.permissions import HasSDKKey, HasServerSDKKey
