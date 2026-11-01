@@ -32,17 +32,21 @@ Stop at the first step that fails, and report it. Don't fix anything inside this
      attribution**, the same as commits.
    - The exact commands you'll run: `git add <files>` (list them, and flag any file
      that should be left out), `git commit -F <file>`, `git push -u origin <branch>` and
-     `gh pr create --base main --head <branch> --title "<title>" --body-file <file>`.
+     `gh pr create --base main --head <branch> --title '<title>' --body-file <file>`.
 7. **Wait for confirmation.** Commit only after the user confirms in this conversation.
    Write the message to a file under `.claude/plans/` (gitignored) with the Write tool
    and pass it with `-F`. Inline text that names a dotenv file trips the guard in
    `protect.sh`.
-8. **Push the branch.** Check `git branch --show-current` first. If it is `main`, stop:
-   never push main. Push with the branch named explicitly, `git push -u origin <branch>`.
-   Never use a bare `git push`, `HEAD`, a `+refspec` or `--force`; settings deny them.
+8. **Push the branch.** **Wait for the user to confirm the push** in this conversation,
+   even after confirming the commit. Check `git branch --show-current` first. If it is
+   `main`, stop: never push main. Push with the branch named explicitly,
+   `git push -u origin <branch>`. Never use a bare `git push`, `HEAD`, a `+refspec` or
+   `--force`. Settings deny the common forms; the GitHub ruleset is the real guard.
 9. **Open the PR.** Write the PR body to `.claude/plans/pr-<branch>.md` (replace `/` in
    the branch name with `-`) with the Write tool, and end it with `Closes #<n>` when an
-   issue was given. Run
-   `gh pr create --base main --head <branch> --title "<title>" --body-file <that file>`.
+   issue was given. **Wait for the user to confirm the PR**, then run
+   `gh pr create --base main --head <branch> --title '<title>' --body-file <that file>`.
+   The title is single-quoted, so backticks and `$(` stay literal. If it contains a `'`,
+   reword it.
 10. **Stop.** Print the PR URL. **Never merge or close the PR**; the user reviews and
     merges.

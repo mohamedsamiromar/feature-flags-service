@@ -13,6 +13,9 @@ Issue: $ARGUMENTS
 Nothing is created until the user confirms in this conversation. Stop at the first step
 that fails, and report it.
 
+This skill relies on `.claude/plans/issues/`, which is gitignored, so the drafts exist
+only on this machine.
+
 1. **Build the draft.**
    - **A draft is named** (a path, a file name, or a draft number such as `03`): find it in
      `.claude/plans/issues/`. Line 1 is the title, and line 2 is `Labels: a, b`. The body is
@@ -34,7 +37,9 @@ that fails, and report it.
    The body goes through a file because text that names a dotenv file trips the guard in
    `protect.sh`.
 5. **Create it.** After the user confirms, run
-   `gh issue create --title "<title>" --label "<a>" --label "<b>" --body-file <that file>`.
+   `gh issue create --title '<title>' --label '<a>' --label '<b>' --body-file <that file>`.
+   The title is single-quoted, so backticks and `$(` stay literal. If it contains a `'`,
+   reword it.
    If the title itself names a dotenv file, reword the title and say so, since the title
    can't be passed by file.
 6. **Report.** Give the issue number and URL. When it came from a draft, tick that draft's
